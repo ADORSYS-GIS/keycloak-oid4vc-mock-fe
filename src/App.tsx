@@ -1,16 +1,23 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from './context/AuthContext';
-import { AuthProvider } from './context/AuthProvider';
-import ProtectedRoute from './components/ProtectedRoute';
-import Login from './components/Login';
-import Dashboard from './components/Dashboard';
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useAuth } from "./context/AuthContext";
+import { AuthProvider } from "./context/AuthProvider";
+import ProtectedRoute from "./components/ProtectedRoute";
+import Login from "./components/Login";
+import Dashboard from "./components/Dashboard";
 
 function AppRoutes() {
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "100vh",
+        }}
+      >
         <h2>Loading...</h2>
       </div>
     );
@@ -18,15 +25,11 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route 
-        path="/" 
+      <Route
+        path="/"
         element={
-          isAuthenticated ? (
-            <Navigate to="/dashboard" replace />
-          ) : (
-            <Login />
-          )
-        } 
+          isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />
+        }
       />
       <Route
         path="/dashboard"

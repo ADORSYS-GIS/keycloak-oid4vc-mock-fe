@@ -1,4 +1,4 @@
-import keycloak from '../config/keycloak.config';
+import keycloak from "../config/keycloak.config";
 
 interface ApiRequestOptions extends RequestInit {
   requireAuth?: boolean;
@@ -7,22 +7,22 @@ interface ApiRequestOptions extends RequestInit {
 class ApiClient {
   private baseUrl: string;
 
-  constructor(baseUrl: string = import.meta.env.VITE_API_BASE_URL || '') {
+  constructor(baseUrl: string = import.meta.env.VITE_API_BASE_URL || "") {
     this.baseUrl = baseUrl;
   }
 
   private async getHeaders(requireAuth: boolean = true): Promise<HeadersInit> {
     const headers: HeadersInit = {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     };
 
     if (requireAuth && keycloak.token) {
       // Refresh token if needed
       try {
         await keycloak.updateToken(5);
-        headers['Authorization'] = `Bearer ${keycloak.token}`;
+        headers["Authorization"] = `Bearer ${keycloak.token}`;
       } catch (error) {
-        console.error('Failed to refresh token:', error);
+        console.error("Failed to refresh token:", error);
         keycloak.login();
       }
     }
@@ -32,7 +32,7 @@ class ApiClient {
 
   async request<T>(
     endpoint: string,
-    options: ApiRequestOptions = {}
+    options: ApiRequestOptions = {},
   ): Promise<T> {
     const { requireAuth = true, ...fetchOptions } = options;
 
@@ -57,27 +57,35 @@ class ApiClient {
   }
 
   async get<T>(endpoint: string, requireAuth = true): Promise<T> {
-    return this.request<T>(endpoint, { method: 'GET', requireAuth });
+    return this.request<T>(endpoint, { method: "GET", requireAuth });
   }
 
-  async post<T>(endpoint: string, data: unknown, requireAuth = true): Promise<T> {
+  async post<T>(
+    endpoint: string,
+    data: unknown,
+    requireAuth = true,
+  ): Promise<T> {
     return this.request<T>(endpoint, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(data),
       requireAuth,
     });
   }
 
-  async put<T>(endpoint: string, data: unknown, requireAuth = true): Promise<T> {
+  async put<T>(
+    endpoint: string,
+    data: unknown,
+    requireAuth = true,
+  ): Promise<T> {
     return this.request<T>(endpoint, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(data),
       requireAuth,
     });
   }
 
   async delete<T>(endpoint: string, requireAuth = true): Promise<T> {
-    return this.request<T>(endpoint, { method: 'DELETE', requireAuth });
+    return this.request<T>(endpoint, { method: "DELETE", requireAuth });
   }
 }
 

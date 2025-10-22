@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
-import { useAuth } from '../hooks/useAuth';
+import type { ReactNode } from "react";
+import { useAuth } from "../hooks/useAuth";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -11,7 +11,14 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
 
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "100vh",
+        }}
+      >
         <h2>Loading...</h2>
       </div>
     );
@@ -24,7 +31,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
 
   if (requiredRole && !hasRole(requiredRole)) {
     return (
-      <div style={{ textAlign: 'center', marginTop: '50px' }}>
+      <div style={{ textAlign: "center", marginTop: "50px" }}>
         <h2>Access Denied</h2>
         <p>You don't have permission to access this page.</p>
       </div>
