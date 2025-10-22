@@ -21,8 +21,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       console.log('Initializing Keycloak...');
       const authenticated = await keycloak.init({
+        onLoad: 'check-sso',
         pkceMethod: 'S256',
+        checkLoginIframe: false,
         enableLogging: true,
+        // Explicitly set redirect URI to current URL
+        redirectUri: window.location.origin + window.location.pathname,
       });
 
       console.log('Authenticated via init:', authenticated);
@@ -59,11 +63,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = () => {
     console.log('Login called, redirecting to Keycloak...');
-    keycloak.login();
+    // Explicitly provide redirect URI
+    keycloak.login({
+      redirectUri: window.location.origin + '/',
+    });
   };
 
   const logout = () => {
-    keycloak.logout();
+    keycloak.logout({
+      redirectUri: window.location.origin + '/',
+    });
   };
 
   const getToken = (): string | undefined => {
