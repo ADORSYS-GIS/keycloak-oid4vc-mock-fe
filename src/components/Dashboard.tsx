@@ -50,7 +50,6 @@ const Dashboard = () => {
         alignItems: "center",
         justifyContent: "center",
         minHeight: "100vh",
-        padding: "40px",
         backgroundColor: "#f8f9fa",
         fontFamily: "Arial, sans-serif",
       }}
@@ -122,74 +121,118 @@ const Dashboard = () => {
           confirm saving your credential in your digital wallet.
         </p>
 
-        {/* Loading state */}
-        {isLoading && (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "20px",
-              marginTop: "40px",
-            }}
-          >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            minHeight: "480px",
+          }}
+        >
+          {/* Loading state */}
+          {isLoading && (
             <div
               style={{
-                width: "60px",
-                height: "60px",
-                border: "4px solid #e9ecef",
-                borderTop: "4px solid #0865f0",
-                borderRadius: "50%",
-                animation: "spin 1s linear infinite",
-              }}
-            />
-            <p style={{ margin: 0, color: "#6c757d" }}>
-              Generating QR code...
-            </p>
-          </div>
-        )}
-
-        {/* Error state */}
-        {!isLoading && error && (
-          <div
-            style={{
-              backgroundColor: "#f8d7da",
-              color: "#721c24",
-              padding: "20px",
-              borderRadius: "8px",
-              marginTop: "20px",
-              border: "1px solid #f5c6cb",
-            }}
-          >
-            <p style={{ margin: 0, fontWeight: 500 }}>{error}</p>
-            <button
-              onClick={prepareQr}
-              style={{
-                marginTop: "15px",
-                backgroundColor: "#721c24",
-                color: "#fff",
-                border: "none",
-                padding: "10px 20px",
-                borderRadius: "4px",
-                cursor: "pointer",
-                fontSize: "0.95rem",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "20px",
               }}
             >
-              Try Again
-            </button>
-          </div>
-        )}
+              <div
+                style={{
+                  width: "60px",
+                  height: "60px",
+                  border: "4px solid #e9ecef",
+                  borderTop: "4px solid #0865f0",
+                  borderRadius: "50%",
+                  animation: "spin 1s linear infinite",
+                }}
+              />
+              <p style={{ margin: 0, color: "#6c757d" }}>
+                Generating QR code...
+              </p>
+            </div>
+          )}
 
-        {/* QR Code Image */}
-        {!isLoading && !error && qrImageSrc && (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "20px",
-            }}
-          >
+          {/* Error state */}
+          {!isLoading && error && (
+            <div
+              style={{
+                backgroundColor: "#f8d7da",
+                color: "#721c24",
+                padding: "20px",
+                borderRadius: "8px",
+                border: "1px solid #f5c6cb",
+              }}
+            >
+              <p style={{ margin: 0, fontWeight: 500 }}>{error}</p>
+              <button
+                onClick={prepareQr}
+                style={{
+                  marginTop: "15px",
+                  backgroundColor: "#721c24",
+                  color: "#fff",
+                  border: "none",
+                  padding: "10px 20px",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  fontSize: "0.95rem",
+                }}
+              >
+                Try Again
+              </button>
+            </div>
+          )}
+
+          {/* QR Code Image */}
+          {!isLoading && !error && qrImageSrc && (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "20px",
+              }}
+            >
+              <div
+                style={{
+                  backgroundColor: "#fff",
+                  padding: "30px",
+                  borderRadius: "12px",
+                  boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+                }}
+              >
+                <img
+                  src={qrImageSrc}
+                  alt="Credential Offer QR Code"
+                  style={{
+                    width: "360px",
+                    height: "360px",
+                    display: "block",
+                  }}
+                />
+              </div>
+              <button
+                onClick={prepareQr}
+                style={{
+                  backgroundColor: "#0865f0",
+                  color: "#fff",
+                  border: "none",
+                  padding: "12px 24px",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  fontSize: "1rem",
+                  fontWeight: 500,
+                }}
+              >
+                Refresh QR Code
+              </button>
+            </div>
+          )}
+
+          {/* Deeplink Fallback */}
+          {!isLoading && !error && !qrImageSrc && offerDeeplink && (
             <div
               style={{
                 backgroundColor: "#fff",
@@ -198,86 +241,49 @@ const Dashboard = () => {
                 boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
               }}
             >
-              <img
-                src={qrImageSrc}
-                alt="Credential Offer QR Code"
+              <p
                 style={{
-                  width: "360px",
-                  height: "360px",
-                  display: "block",
+                  fontWeight: 600,
+                  marginBottom: "15px",
+                  color: "#212529",
+                }}
+              >
+                Credential Offer Link:
+              </p>
+              <textarea
+                readOnly
+                value={offerDeeplink}
+                style={{
+                  width: "100%",
+                  height: "120px",
+                  padding: "15px",
+                  fontFamily: "monospace",
+                  fontSize: "0.85rem",
+                  border: "1px solid #dee2e6",
+                  borderRadius: "4px",
+                  resize: "vertical",
+                  backgroundColor: "#f8f9fa",
                 }}
               />
+              <button
+                onClick={prepareQr}
+                style={{
+                  marginTop: "20px",
+                  backgroundColor: "#0865f0",
+                  color: "#fff",
+                  border: "none",
+                  padding: "12px 24px",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  fontSize: "1rem",
+                  fontWeight: 500,
+                }}
+              >
+                Refresh
+              </button>
             </div>
-            <button
-              onClick={prepareQr}
-              style={{
-                backgroundColor: "#0865f0",
-                color: "#fff",
-                border: "none",
-                padding: "12px 24px",
-                borderRadius: "4px",
-                cursor: "pointer",
-                fontSize: "1rem",
-                fontWeight: 500,
-              }}
-            >
-              Refresh QR Code
-            </button>
-          </div>
-        )}
-
-        {/* Deeplink Fallback */}
-        {!isLoading && !error && !qrImageSrc && offerDeeplink && (
-          <div
-            style={{
-              backgroundColor: "#fff",
-              padding: "30px",
-              borderRadius: "12px",
-              boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
-            }}
-          >
-            <p
-              style={{
-                fontWeight: 600,
-                marginBottom: "15px",
-                color: "#212529",
-              }}
-            >
-              Credential Offer Link:
-            </p>
-            <textarea
-              readOnly
-              value={offerDeeplink}
-              style={{
-                width: "100%",
-                height: "120px",
-                padding: "15px",
-                fontFamily: "monospace",
-                fontSize: "0.85rem",
-                border: "1px solid #dee2e6",
-                borderRadius: "4px",
-                resize: "vertical",
-                backgroundColor: "#f8f9fa",
-              }}
-            />
-            <button
-              onClick={prepareQr}
-              style={{
-                marginTop: "20px",
-                backgroundColor: "#0865f0",
-                color: "#fff",
-                border: "none",
-                padding: "12px 24px",
-                borderRadius: "4px",
-                cursor: "pointer",
-                fontSize: "1rem",
-                fontWeight: 500,
-              }}
-            >
-              Refresh
-            </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <style>{`
