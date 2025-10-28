@@ -49,7 +49,7 @@ const QrContent = ({ onBack }: QrContentProps) => {
   return (
     <div>
       <h1 style={{ fontSize: "2rem", marginBottom: "20px", fontWeight: 400 }}>
-        Tax Advisor Platform
+        You are logged in
       </h1>
 
       <p
@@ -60,8 +60,7 @@ const QrContent = ({ onBack }: QrContentProps) => {
           color: "#333",
         }}
       >
-        Please scan the displayed QR code with your EUDI Wallet App and confirm
-        saving your credential in your digital wallet.
+        Please scan the displayed QR code with your EUDI Wallet App.
       </p>
 
       {isLoading && (

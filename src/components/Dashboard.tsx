@@ -106,7 +106,7 @@ const Dashboard = () => {
             color: "#212529",
           }}
         >
-          Tax Advisor Identity
+          You are logged in
         </h1>
 
         <p
@@ -117,8 +117,7 @@ const Dashboard = () => {
             color: "#6c757d",
           }}
         >
-          Please scan the displayed QR code with your EUDI Wallet App and
-          confirm saving your credential in your digital wallet.
+          Please scan the displayed QR code with your EUDI Wallet App.
         </p>
 
         <div
