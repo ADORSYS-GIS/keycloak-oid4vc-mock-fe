@@ -41,7 +41,9 @@ class Oid4vcService {
   ): Promise<string> {
     try {
       const headers = await this.getAuthHeaders();
-      const url = `${this.getBaseUrl()}/protocol/oid4vc/credential-offer-uri?credential_configuration_id=${encodeURIComponent(credentialConfigurationId)}`;
+      const url = `${this.getBaseUrl()}/protocol/oid4vc/credential-offer-uri?`
+      + `credential_configuration_id=${encodeURIComponent(credentialConfigurationId)}`
+      +`&username=${encodeURIComponent(keycloak.tokenParsed?.preferred_username || "")}`;
 
       const response = await fetch(url, { headers });
 
@@ -124,7 +126,8 @@ class Oid4vcService {
       Authorization: `Bearer ${keycloak.token}`,
     };
 
-    const url = `${this.getBaseUrl()}/protocol/oid4vc/credential-offer-uri?credential_configuration_id=${encodeURIComponent(credentialConfigurationId)}&type=qr-code`;
+    const url = `${this.getBaseUrl()}/protocol/oid4vc/credential-offer-uri?credential_configuration_id=${encodeURIComponent(credentialConfigurationId)}&type=qr-code`
+    +`&username=${encodeURIComponent(keycloak.tokenParsed?.preferred_username || "")}`;
 
     const response = await fetch(url, { headers });
 
