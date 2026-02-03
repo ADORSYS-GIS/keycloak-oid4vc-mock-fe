@@ -4,10 +4,10 @@ This project is a React application that demonstrates how to integrate Keycloak 
 
 ## Features
 
-*   **User Authentication:** Login and logout functionality using Keycloak SSO.
-*   **Protected Routes:** A dashboard page that is only accessible to authenticated users.
-*   **OID4VC Integration:** A service to interact with an OID4VC provider.
-*   **Modern Tech Stack:** Built with React, Vite, and Tailwind CSS.
+- **User Authentication:** Login and logout functionality using Keycloak SSO.
+- **Protected Routes:** A dashboard page that is only accessible to authenticated users.
+- **OID4VC Integration:** A service to interact with an OID4VC provider.
+- **Modern Tech Stack:** Built with React, Vite, and Tailwind CSS.
 
 ## Getting Started
 
@@ -15,13 +15,14 @@ These instructions will get you a copy of the project up and running on your loc
 
 ### Prerequisites
 
-*   [Node.js](https://nodejs.org/) (v18 or higher recommended)
-*   [npm](https://yarnpkg.com/) package manager
-*   A running Keycloak instance with a configured realm and client.
+- [Node.js](https://nodejs.org/) (v18 or higher recommended)
+- [npm](https://yarnpkg.com/) package manager
+- A running Keycloak instance with a configured realm and client.
 
 ### Installation
 
 1.  Clone the repository:
+
     ```bash
     git clone https://github.com/your-username/keycloak-sso.git
     cd keycloak-sso
@@ -59,8 +60,7 @@ The application will be available at `http://localhost:3000`.
 
 In the project directory, you can run:
 
-*   `npm run dev`: Runs the app in the development mode.
-*   `npm run build`: Builds the app for production to the `dist` folder.
-*   `npm run lint`: Lints the codebase using ESLint.
-*   `npm run preview`: Serves the production build locally for preview.
-
+- `npm run dev`: Runs the app in the development mode.
+- `npm run build`: Builds the app for production to the `dist` folder.
+- `npm run lint`: Lints the codebase using ESLint.
+- `npm run preview`: Serves the production build locally for preview.

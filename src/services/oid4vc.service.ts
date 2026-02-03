@@ -1,4 +1,4 @@
-import keycloak from "../config/keycloak.config";
+import keycloak from '../config/keycloak.config';
 
 interface CredentialOfferUriResponse {
   credential_offer_uri?: string;
@@ -12,12 +12,11 @@ interface CredentialOffer {
 }
 
 export const CredentialConfigurationId = {
-  KMA: "KMACredential",
+  KMA: 'KMACredential',
 } as const;
 
 export const DEFAULT_CREDENTIAL_CONFIGURATION_ID =
-  import.meta.env.VITE_OID4VC_DEFAULT_CREDENTIAL_CONFIGURATION_ID ||
-  CredentialConfigurationId.KMA;
+  import.meta.env.VITE_OID4VC_DEFAULT_CREDENTIAL_CONFIGURATION_ID || CredentialConfigurationId.KMA;
 
 class Oid4vcService {
   private getBaseUrl(): string {
@@ -32,12 +31,12 @@ class Oid4vcService {
 
     return {
       Authorization: `Bearer ${keycloak.token}`,
-      Accept: "application/json",
+      Accept: 'application/json',
     };
   }
 
   async getCredentialOfferUri(
-    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID,
+    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID
   ): Promise<string> {
     try {
       const headers = await this.getAuthHeaders();
@@ -46,20 +45,18 @@ class Oid4vcService {
       const response = await fetch(url, { headers });
 
       if (!response.ok) {
-        throw new Error(
-          `Failed to get credential offer URI: ${response.statusText}`,
-        );
+        throw new Error(`Failed to get credential offer URI: ${response.statusText}`);
       }
 
       const data: string | CredentialOfferUriResponse = await response.json();
 
-      if (typeof data === "string") return data;
+      if (typeof data === 'string') return data;
       if (data?.credential_offer_uri) return data.credential_offer_uri;
       if (data?.issuer && data?.nonce) return `${data.issuer}${data.nonce}`;
 
-      throw new Error("Unexpected credential-offer-uri response");
+      throw new Error('Unexpected credential-offer-uri response');
     } catch (error) {
-      console.error("Error getting credential offer URI:", error);
+      console.error('Error getting credential offer URI:', error);
       throw error;
     }
   }
@@ -78,10 +75,10 @@ class Oid4vcService {
   buildOfferDeeplink(
     offer: CredentialOffer,
     offerUrl?: string,
-    variant: "uri" | "json" = "uri",
+    variant: 'uri' | 'json' = 'uri'
   ): string {
     try {
-      if (variant === "uri" && offerUrl) {
+      if (variant === 'uri' && offerUrl) {
         const encoded = encodeURIComponent(offerUrl);
         return `openid-credential-offer://?credential_offer_uri=${encoded}`;
       }
@@ -96,7 +93,7 @@ class Oid4vcService {
       const encoded = encodeURIComponent(payload);
       return `openid-credential-offer://?credential_offer=${encoded}`;
     } catch (error) {
-      console.error("Error building offer deeplink:", error);
+      console.error('Error building offer deeplink:', error);
       throw error;
     }
   }
@@ -115,12 +112,12 @@ class Oid4vcService {
   }
 
   async getCredentialOfferPng(
-    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID,
+    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID
   ): Promise<Blob> {
     await keycloak.updateToken(5);
 
     const headers = {
-      Accept: "image/png",
+      Accept: 'image/png',
       Authorization: `Bearer ${keycloak.token}`,
     };
 
@@ -136,28 +133,24 @@ class Oid4vcService {
   }
 
   async getCredentialOfferQrDataUrl(
-    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID,
+    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID
   ): Promise<string> {
     try {
-      const pngBlob = await this.getCredentialOfferPng(
-        credentialConfigurationId,
-      );
+      const pngBlob = await this.getCredentialOfferPng(credentialConfigurationId);
       const dataUrl = await this.blobToDataURL(pngBlob);
       return dataUrl;
     } catch (error) {
-      console.error("Failed to get QR code data URL:", error);
+      console.error('Failed to get QR code data URL:', error);
       throw error;
     }
   }
 
   async getCredentialOfferDeeplink(
-    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID,
+    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID
   ): Promise<string> {
-    const offerUrl = await this.getCredentialOfferUri(
-      credentialConfigurationId,
-    );
+    const offerUrl = await this.getCredentialOfferUri(credentialConfigurationId);
     const offer = await this.fetchOffer(offerUrl);
-    const deeplink = this.buildOfferDeeplink(offer, offerUrl, "uri");
+    const deeplink = this.buildOfferDeeplink(offer, offerUrl, 'uri');
     return deeplink;
   }
 }
