@@ -156,4 +156,3 @@ class Oid4vcService {
 }
 
 export default new Oid4vcService();
-// force lf
