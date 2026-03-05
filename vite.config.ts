@@ -5,5 +5,12 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 4200,
+    proxy: {
+      '/realms': {
+        target: 'https://localhost:8443',
+        changeOrigin: true,
+        secure: false, // In case of local self-signed certs
+      },
+    },
   },
 });

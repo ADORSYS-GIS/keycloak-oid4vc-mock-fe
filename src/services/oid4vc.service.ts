@@ -20,9 +20,8 @@ export const DEFAULT_CREDENTIAL_CONFIGURATION_ID =
 
 class Oid4vcService {
   private getBaseUrl(): string {
-    const keycloakUrl = import.meta.env.VITE_KEYCLOAK_URL;
     const realm = import.meta.env.VITE_KEYCLOAK_REALM;
-    return `${keycloakUrl}/realms/${realm}`;
+    return `/realms/${realm}`;
   }
 
   private async getAuthHeaders(): Promise<HeadersInit> {
@@ -66,7 +65,15 @@ class Oid4vcService {
 
   async fetchOffer(offerUrl: string): Promise<CredentialOffer> {
     const headers = await this.getAuthHeaders();
-    const response = await fetch(offerUrl, { headers });
+
+    // Rewrite absolute Keycloak URLs to relative paths to route requests through the local Vite proxy.
+    const keycloakUrl = import.meta.env.VITE_KEYCLOAK_URL;
+    let urlToFetch = offerUrl;
+    if (offerUrl.startsWith(keycloakUrl)) {
+      urlToFetch = offerUrl.replace(keycloakUrl, '');
+    }
+
+    const response = await fetch(urlToFetch, { headers });
 
     if (!response.ok) {
       throw new Error(`Failed to fetch offer: ${response.statusText}`);
@@ -89,7 +96,8 @@ class Oid4vcService {
       // JSON variant
       const normalized: CredentialOffer = { ...offer };
       if (!normalized.credential_issuer) {
-        normalized.credential_issuer = this.getBaseUrl();
+        const keycloakUrl = import.meta.env.VITE_KEYCLOAK_URL;
+        normalized.credential_issuer = `${keycloakUrl}${this.getBaseUrl()}`;
       }
 
       const payload = JSON.stringify(normalized);
