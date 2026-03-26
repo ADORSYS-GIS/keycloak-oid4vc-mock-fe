@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { AuthProvider } from './context/AuthProvider';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -23,22 +23,12 @@ function AppRoutes() {
     );
   }
 
-  return (
-    <Routes>
-      <Route
-        path="/"
-        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />}
-      />
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route path="/login" element={<Login />} />
-    </Routes>
+  return isAuthenticated ? (
+    <ProtectedRoute>
+      <Dashboard />
+    </ProtectedRoute>
+  ) : (
+    <Login />
   );
 }
 
