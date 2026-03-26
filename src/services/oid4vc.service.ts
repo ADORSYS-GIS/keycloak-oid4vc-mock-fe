@@ -65,8 +65,7 @@ class Oid4vcService {
   }
 
   async fetchOffer(offerUrl: string): Promise<CredentialOffer> {
-    const headers = await this.getAuthHeaders();
-    const response = await fetch(offerUrl, { headers });
+    const response = await fetch(offerUrl);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch offer: ${response.statusText}`);
@@ -151,11 +150,12 @@ class Oid4vcService {
   }
 
   async getCredentialOfferDeeplink(
+    byReference: boolean = true,
     credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID
   ): Promise<string> {
     const offerUrl = await this.getCredentialOfferUri(credentialConfigurationId);
     const offer = await this.fetchOffer(offerUrl);
-    const deeplink = this.buildOfferDeeplink(offer, offerUrl, 'uri');
+    const deeplink = this.buildOfferDeeplink(offer, offerUrl, byReference ? 'uri' : 'json');
     return deeplink;
   }
 }
