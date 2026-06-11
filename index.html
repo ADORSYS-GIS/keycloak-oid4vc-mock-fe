@@ -7,9 +7,11 @@
     <title>keycloak-sso</title>
 
     <script>
-      const newBase = 'https://adorsys-gis.github.io/keycloak-oid4vc-mock-fe-datev';
-      const path = window.location.pathname.replace('/keycloak-oid4vc-mock-fe', '');
-      window.location.href = newBase + path + window.location.search + window.location.hash;
+      if (!['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+        const newBase = 'https://adorsys-gis.github.io/keycloak-oid4vc-mock-fe-datev';
+        const path = window.location.pathname.replace('/keycloak-oid4vc-mock-fe', '');
+        window.location.href = newBase + path + window.location.search + window.location.hash;
+      }
     </script>
   </head>
   <body>
