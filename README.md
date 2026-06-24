@@ -48,7 +48,7 @@ To start the development server, run the following command:
 npm run dev
 ```
 
-The application will be available at `http://localhost:3000`.
+The current local setup uses `http://localhost:4200/`. If Vite starts on another port, update `VITE_APP_BASE_URL` and the Keycloak client redirect/web-origin settings to match.
 
 ## Available Scripts
 

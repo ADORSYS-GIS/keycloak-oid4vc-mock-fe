@@ -3,10 +3,18 @@ import { useAuth } from '../hooks/useAuth';
 import oid4vcService from '../services/oid4vc.service';
 import QRCode from 'react-qr-code';
 
+type OfferQr = {
+  id: 'reference' | 'value';
+  title: string;
+  description: string;
+  deeplink: string;
+};
+
+const spinnerStyles = '@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }';
+
 const Dashboard = () => {
   const { userProfile, logout } = useAuth();
-  const [offerDeeplink, setOfferDeeplink] = useState<string | null>(null);
-  const [offerDeeplinkVal, setOfferDeeplinkVal] = useState<string | null>(null);
+  const [credentialOffers, setCredentialOffers] = useState<OfferQr[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -14,28 +22,66 @@ const Dashboard = () => {
     prepareQr();
   }, []);
 
+  const getErrorMessage = (error: unknown) => {
+    if (error instanceof Error) return error.message;
+    return String(error);
+  };
+
   const prepareQr = async () => {
     setIsLoading(true);
     setError(null);
+    setCredentialOffers([]);
 
     try {
-      // Retrieve credential offer links
-      // Each call creates a unique offer in Keycloak
-      const [offerLink, offerLinkVal] = await Promise.all([
-        oid4vcService.getCredentialOfferDeeplink(true), // By reference
-        oid4vcService.getCredentialOfferDeeplink(false), // By value
+      const [byReference, byValue] = await Promise.allSettled([
+        oid4vcService.getCredentialOfferDeeplink(true),
+        oid4vcService.getCredentialOfferDeeplink(false),
       ]);
 
-      // Update state with retrieved data
-      setOfferDeeplink(offerLink);
-      setOfferDeeplinkVal(offerLinkVal);
+      const nextOffers: OfferQr[] = [];
+      const failures: string[] = [];
+
+      if (byReference.status === 'fulfilled') {
+        nextOffers.push({
+          id: 'reference',
+          title: 'By reference',
+          description: 'Contains a credential_offer_uri that the wallet resolves from Keycloak.',
+          deeplink: byReference.value,
+        });
+      } else {
+        failures.push('By reference: ' + getErrorMessage(byReference.reason));
+      }
+
+      if (byValue.status === 'fulfilled') {
+        nextOffers.push({
+          id: 'value',
+          title: 'By value',
+          description: 'Contains the full credential offer directly inside the wallet link.',
+          deeplink: byValue.value,
+        });
+      } else {
+        failures.push('By value: ' + getErrorMessage(byValue.reason));
+      }
+
+      setCredentialOffers(nextOffers);
+
+      if (nextOffers.length === 0) {
+        throw new Error(failures.join(' | ') || 'No credential offers were returned.');
+      }
+
+      if (failures.length > 0) {
+        console.warn('Some credential offers failed:', failures);
+        setError(failures.join(' | '));
+      }
     } catch (error) {
       console.error('Failed to retrieve credential offer', error);
-      setError('Failed to retrieve credential offer. Please try again.');
+      setError(getErrorMessage(error));
     } finally {
       setIsLoading(false);
     }
   };
+
+  const hasOffers = credentialOffers.length > 0;
 
   return (
     <div
@@ -50,7 +96,6 @@ const Dashboard = () => {
         fontFamily: 'Arial, sans-serif',
       }}
     >
-      {/* Header with user info and logout */}
       <div
         style={{
           position: 'absolute',
@@ -84,10 +129,9 @@ const Dashboard = () => {
         </button>
       </div>
 
-      {/* Main content */}
       <div
         style={{
-          maxWidth: '600px',
+          maxWidth: '960px',
           width: '100%',
           textAlign: 'center',
         }}
@@ -111,9 +155,9 @@ const Dashboard = () => {
             color: '#6c757d',
           }}
         >
-          <p style={{ margin: 0 }}>Please scan the displayed QR code with your EUDI Wallet App.</p>
+          <p style={{ margin: 0 }}>Please scan a credential offer QR code with your EUDI Wallet App.</p>
           <p style={{ margin: 0, fontSize: '1rem' }}>
-            Alternatively, click on the offer link to open it directly in your wallet.
+            Use by reference for shorter links, or by value when the wallet expects the full offer payload.
           </p>
         </div>
 
@@ -123,10 +167,9 @@ const Dashboard = () => {
             flexDirection: 'column',
             justifyContent: 'center',
             minHeight: '480px',
-            gap: '30px',
+            gap: '24px',
           }}
         >
-          {/* Loading state */}
           {isLoading && (
             <div
               style={{
@@ -146,12 +189,11 @@ const Dashboard = () => {
                   animation: 'spin 1s linear infinite',
                 }}
               />
-              <p style={{ margin: 0, color: '#6c757d' }}>Renewing credential offer...</p>
+              <p style={{ margin: 0, color: '#6c757d' }}>Renewing credential offers...</p>
             </div>
           )}
 
-          {/* Error state */}
-          {!isLoading && error && (
+          {!isLoading && error && !hasOffers && (
             <div
               style={{
                 backgroundColor: '#f8d7da',
@@ -161,7 +203,8 @@ const Dashboard = () => {
                 border: '1px solid #f5c6cb',
               }}
             >
-              <p style={{ margin: 0, fontWeight: 500 }}>{error}</p>
+              <p style={{ margin: 0, fontWeight: 500 }}>Failed to retrieve credential offers.</p>
+              <p style={{ margin: '10px 0 0', fontSize: '0.9rem', wordBreak: 'break-word' }}>{error}</p>
               <button
                 onClick={prepareQr}
                 style={{
@@ -180,21 +223,38 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* Credential offer loaded (by value) */}
-          {!isLoading &&
-            !error &&
-            offerDeeplinkVal &&
-            showCredentialOffer(offerDeeplinkVal, 'By value')}
+          {!isLoading && error && hasOffers && (
+            <div
+              style={{
+                backgroundColor: '#fff3cd',
+                color: '#664d03',
+                padding: '14px 16px',
+                borderRadius: '8px',
+                border: '1px solid #ffecb5',
+                textAlign: 'left',
+                wordBreak: 'break-word',
+              }}
+            >
+              <p style={{ margin: 0, fontWeight: 500 }}>One credential offer could not be generated.</p>
+              <p style={{ margin: '8px 0 0', fontSize: '0.9rem' }}>{error}</p>
+            </div>
+          )}
 
-          {/* Credential offer loaded (by reference) */}
-          {!isLoading &&
-            !error &&
-            offerDeeplink &&
-            showCredentialOffer(offerDeeplink, 'By reference')}
+          {!isLoading && hasOffers && (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                gap: '24px',
+                alignItems: 'stretch',
+              }}
+            >
+              {credentialOffers.map((offer) => showCredentialOffer(offer))}
+            </div>
+          )}
 
-          {/* Renew button */}
-          {!isLoading && !error && (
-            <div style={{ marginTop: '20px' }}>
+          {!isLoading && hasOffers && (
+            <div style={{ marginTop: '4px' }}>
               <button
                 onClick={prepareQr}
                 style={{
@@ -208,65 +268,82 @@ const Dashboard = () => {
                   fontWeight: 500,
                 }}
               >
-                Renew credential offer
+                Renew credential offers
               </button>
             </div>
           )}
         </div>
       </div>
 
-      <style>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      `}</style>
+      <style>{spinnerStyles}</style>
     </div>
   );
 };
 
-function showCredentialOffer(offerLink: string, title: string) {
+function showCredentialOffer(offer: OfferQr) {
   return (
     <div
+      key={offer.id}
       style={{
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: '20px',
+        gap: '16px',
+        backgroundColor: '#fff',
+        border: '1px solid #dee2e6',
+        borderRadius: '8px',
+        padding: '20px',
+        minWidth: 0,
       }}
     >
-      <div>
+      <div style={{ minHeight: '88px' }}>
         <p
           style={{
             fontSize: '1.25rem',
             fontWeight: 600,
-            marginBottom: '15px',
+            margin: '0 0 8px',
             color: '#212529',
-            fontStyle: 'italic',
           }}
         >
-          {title}
+          {offer.title}
         </p>
-        <div style={{ maxWidth: '800px', wordBreak: 'break-all' }}>
-          <a href={offerLink} target="_blank" rel="noopener noreferrer">
-            {offerLink}
-          </a>
-        </div>
+        <p
+          style={{
+            margin: 0,
+            color: '#6c757d',
+            fontSize: '0.95rem',
+            lineHeight: 1.45,
+          }}
+        >
+          {offer.description}
+        </p>
       </div>
+
       <div
         style={{
           backgroundColor: '#fff',
-          padding: '20px',
-          borderRadius: '12px',
-          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+          padding: '16px',
+          borderRadius: '8px',
+          border: '1px solid #e9ecef',
+          width: 'min(100%, 300px)',
+          aspectRatio: '1 / 1',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
       >
         <QRCode
-          value={offerLink}
-          size={300}
+          value={offer.deeplink}
+          size={260}
           style={{ height: 'auto', maxWidth: '100%', width: '100%' }}
-          viewBox={`0 0 300 300`}
+          viewBox="0 0 260 260"
         />
+      </div>
+
+      <div style={{ width: '100%', wordBreak: 'break-all', fontSize: '0.85rem', lineHeight: 1.45 }}>
+        <a href={offer.deeplink} target="_blank" rel="noopener noreferrer">
+          {offer.deeplink}
+        </a>
       </div>
     </div>
   );

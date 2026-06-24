@@ -2,8 +2,13 @@ import { useEffect, useState, type ReactNode, useCallback, useRef } from 'react'
 import keycloak from '../config/keycloak.config';
 import { AuthContext, type UserProfile } from './AuthContext';
 
+let keycloakInitPromise: Promise<boolean> | undefined;
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const appBaseUrl = `${window.location.origin}${import.meta.env.BASE_URL}`;
+  const configuredAppBaseUrl = import.meta.env.VITE_APP_BASE_URL as string | undefined;
+  const appBaseUrl = configuredAppBaseUrl
+    ? configuredAppBaseUrl.replace(/\/?$/, '/')
+    : `${window.location.origin}${import.meta.env.BASE_URL}`;
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -15,34 +20,49 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
   }, [appBaseUrl]);
 
-  const loadUserProfile = useCallback(async () => {
-    try {
-      console.log('Loading user profile...');
-      const profile = await keycloak.loadUserProfile();
-      console.log('User profile loaded:', profile);
-      setUserProfile(profile);
-    } catch (error) {
-      console.error('Failed to load user profile:', error);
+  const loadUserProfile = useCallback(() => {
+    const token = keycloak.tokenParsed as Record<string, unknown> | undefined;
+
+    if (!token) {
+      setUserProfile(null);
+      return;
     }
+
+    const profile: UserProfile = {
+      id: typeof token.sub === 'string' ? token.sub : undefined,
+      username: typeof token.preferred_username === 'string' ? token.preferred_username : undefined,
+      firstName: typeof token.given_name === 'string' ? token.given_name : undefined,
+      lastName: typeof token.family_name === 'string' ? token.family_name : undefined,
+      email: typeof token.email === 'string' ? token.email : undefined,
+    };
+
+    console.log('User profile loaded from token claims:', profile);
+    setUserProfile(profile);
   }, []);
 
   const initKeycloak = useCallback(async () => {
     try {
       console.log('Initializing Keycloak...');
-      const authenticated = await keycloak.init({
-        onLoad: 'check-sso',
-        pkceMethod: 'S256',
-        checkLoginIframe: false,
-        enableLogging: true,
-        // Explicitly set redirect URI to current URL
-        redirectUri: window.location.origin + window.location.pathname,
-      });
+      keycloakInitPromise ??= keycloak
+        .init({
+          onLoad: 'check-sso',
+          pkceMethod: 'S256',
+          checkLoginIframe: false,
+          enableLogging: true,
+          redirectUri: appBaseUrl,
+        })
+        .catch((error) => {
+          keycloakInitPromise = undefined;
+          throw error;
+        });
+
+      const authenticated = await keycloakInitPromise;
 
       console.log('Authenticated via init:', authenticated);
       setIsAuthenticated(authenticated);
 
       if (authenticated) {
-        await loadUserProfile();
+        loadUserProfile();
 
         setInterval(() => {
           keycloak.updateToken(70).catch(() => {
@@ -57,7 +77,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(false);
       console.log('Keycloak initialization finished.');
     }
-  }, [loadUserProfile, logout]);
+  }, [appBaseUrl, loadUserProfile, logout]);
 
   useEffect(() => {
     if (isKeycloakInitialized.current) {
