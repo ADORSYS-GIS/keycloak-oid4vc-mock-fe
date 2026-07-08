@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import oid4vcService from '../services/oid4vc.service';
 import QRCode from 'react-qr-code';
+import { getStoredIssuanceFlow, issuanceFlowLabels } from '../issuanceFlow';
 
 type OfferQr = {
   id: 'reference' | 'value';
@@ -14,6 +15,7 @@ const spinnerStyles = '@keyframes spin { 0% { transform: rotate(0deg); } 100% { 
 
 const Dashboard = () => {
   const { userProfile, logout } = useAuth();
+  const [issuanceFlow] = useState(getStoredIssuanceFlow);
   const [credentialOffers, setCredentialOffers] = useState<OfferQr[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,8 +36,8 @@ const Dashboard = () => {
 
     try {
       const [byReference, byValue] = await Promise.allSettled([
-        oid4vcService.getCredentialOfferDeeplink(true),
-        oid4vcService.getCredentialOfferDeeplink(false),
+        oid4vcService.getCredentialOfferDeeplink(true, undefined, issuanceFlow),
+        oid4vcService.getCredentialOfferDeeplink(false, undefined, issuanceFlow),
       ]);
 
       const nextOffers: OfferQr[] = [];
@@ -82,6 +84,11 @@ const Dashboard = () => {
   };
 
   const hasOffers = credentialOffers.length > 0;
+  const flowLabel = issuanceFlowLabels[issuanceFlow];
+  const flowHint =
+    issuanceFlow === 'authorization-code'
+      ? 'This offer contains an authorization_code grant with issuer_state from Keycloak. The wallet will open Keycloak to authorize issuance.'
+      : 'This offer contains a pre-authorized_code grant for the logged-in user.';
 
   return (
     <div
@@ -144,7 +151,7 @@ const Dashboard = () => {
             color: '#212529',
           }}
         >
-          You are logged in
+          {flowLabel}
         </h1>
 
         <div
@@ -156,6 +163,7 @@ const Dashboard = () => {
           }}
         >
           <p style={{ margin: 0 }}>Please scan a credential offer QR code with your EUDI Wallet App.</p>
+          <p style={{ margin: 0, fontSize: '1rem' }}>{flowHint}</p>
           <p style={{ margin: 0, fontSize: '1rem' }}>
             Use by reference for shorter links, or by value when the wallet expects the full offer payload.
           </p>
@@ -189,7 +197,7 @@ const Dashboard = () => {
                   animation: 'spin 1s linear infinite',
                 }}
               />
-              <p style={{ margin: 0, color: '#6c757d' }}>Renewing credential offers...</p>
+              <p style={{ margin: 0, color: '#6c757d' }}>Renewing {flowLabel.toLowerCase()} offers...</p>
             </div>
           )}
 
@@ -268,7 +276,7 @@ const Dashboard = () => {
                   fontWeight: 500,
                 }}
               >
-                Renew credential offers
+                Renew {flowLabel.toLowerCase()} offers
               </button>
             </div>
           )}

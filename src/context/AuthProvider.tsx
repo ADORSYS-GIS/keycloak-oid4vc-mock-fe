@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode, useCallback, useRef } from 'react';
 import keycloak from '../config/keycloak.config';
 import { AuthContext, type UserProfile } from './AuthContext';
+import { DEFAULT_ISSUANCE_FLOW, storeIssuanceFlow, type IssuanceFlow } from '../issuanceFlow';
 
 let keycloakInitPromise: Promise<boolean> | undefined;
 
@@ -87,7 +88,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     initKeycloak();
   }, [initKeycloak]);
 
-  const login = useCallback(() => {
+  const login = useCallback((issuanceFlow?: IssuanceFlow) => {
+    storeIssuanceFlow(issuanceFlow ?? DEFAULT_ISSUANCE_FLOW);
+
     console.log('Login called, redirecting to Keycloak...');
     keycloak.login({
       redirectUri: appBaseUrl,

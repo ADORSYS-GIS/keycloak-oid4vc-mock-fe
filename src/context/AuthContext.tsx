@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react';
+import type { IssuanceFlow } from '../issuanceFlow';
 
 export interface UserProfile {
   username?: string;
@@ -12,7 +13,7 @@ export interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   userProfile: UserProfile | null;
-  login: () => void;
+  login: (issuanceFlow?: IssuanceFlow) => void;
   logout: () => void;
   getToken: () => string | undefined;
   hasRole: (role: string) => boolean;

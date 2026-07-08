@@ -1,4 +1,5 @@
 import keycloak from '../config/keycloak.config';
+import { DEFAULT_ISSUANCE_FLOW, type IssuanceFlow } from '../issuanceFlow';
 
 interface CredentialOfferUriResponse {
   credential_offer_uri?: string;
@@ -69,21 +70,24 @@ class Oid4vcService {
   }
 
   async getCredentialOfferUri(
-    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID
+    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID,
+    issuanceFlow: IssuanceFlow = DEFAULT_ISSUANCE_FLOW
   ): Promise<string> {
-    const data = await this.createCredentialOffer(credentialConfigurationId, 'uri');
+    const data = await this.createCredentialOffer(credentialConfigurationId, 'uri', issuanceFlow);
     return this.getCredentialOfferUrl(data);
   }
 
   private async createCredentialOffer(
     credentialConfigurationId: string,
     responseType: 'uri' | 'uri_qr' | 'qr',
+    issuanceFlow: IssuanceFlow,
     dimensions?: { width: number; height: number }
   ): Promise<CredentialOfferUriResponse> {
+    const isPreAuthorized = issuanceFlow === 'pre-authorized';
     const queryParams: QueryParams = {
       credential_configuration_id: credentialConfigurationId,
-      pre_authorized: 'true',
-      target_user: this.getUsername() || undefined,
+      pre_authorized: isPreAuthorized ? 'true' : undefined,
+      target_user: isPreAuthorized ? this.getUsername() || undefined : undefined,
       type: responseType,
       width: dimensions?.width.toString(),
       height: dimensions?.height.toString(),
@@ -178,12 +182,14 @@ class Oid4vcService {
   }
 
   async getCredentialOfferPng(
-    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID
+    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID,
+    issuanceFlow: IssuanceFlow = DEFAULT_ISSUANCE_FLOW
   ): Promise<Blob> {
+    const isPreAuthorized = issuanceFlow === 'pre-authorized';
     const queryParams: QueryParams = {
       credential_configuration_id: credentialConfigurationId,
-      pre_authorized: 'true',
-      target_user: this.getUsername() || undefined,
+      pre_authorized: isPreAuthorized ? 'true' : undefined,
+      target_user: isPreAuthorized ? this.getUsername() || undefined : undefined,
       type: 'qr',
       width: '360',
       height: '360',
@@ -208,16 +214,22 @@ class Oid4vcService {
   }
 
   async getCredentialOfferQrDataUrl(
-    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID
+    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID,
+    issuanceFlow: IssuanceFlow = DEFAULT_ISSUANCE_FLOW
   ): Promise<string> {
     try {
-      const pngBlob = await this.getCredentialOfferPng(credentialConfigurationId);
+      const pngBlob = await this.getCredentialOfferPng(credentialConfigurationId, issuanceFlow);
       return this.blobToDataURL(pngBlob);
     } catch (error) {
-      const offer = await this.createCredentialOffer(credentialConfigurationId, 'uri_qr', {
-        width: 360,
-        height: 360,
-      });
+      const offer = await this.createCredentialOffer(
+        credentialConfigurationId,
+        'uri_qr',
+        issuanceFlow,
+        {
+          width: 360,
+          height: 360,
+        }
+      );
 
       if (offer.qr_code) {
         return offer.qr_code;
@@ -230,9 +242,10 @@ class Oid4vcService {
 
   async getCredentialOfferDeeplink(
     byReference: boolean = true,
-    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID
+    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID,
+    issuanceFlow: IssuanceFlow = DEFAULT_ISSUANCE_FLOW
   ): Promise<string> {
-    const offerUrl = await this.getCredentialOfferUri(credentialConfigurationId);
+    const offerUrl = await this.getCredentialOfferUri(credentialConfigurationId, issuanceFlow);
 
     if (byReference) {
       return this.buildOfferDeeplink({}, offerUrl, 'uri');
