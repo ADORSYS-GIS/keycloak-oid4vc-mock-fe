@@ -18,7 +18,7 @@ export function CredentialOfferView({
   offerDeeplinkVal: string | null;
   onRetry: () => void;
 }) {
-  const [offerMode, setOfferMode] = useState<OfferMode>('value');
+  const [offerMode, setOfferMode] = useState<OfferMode>('reference');
   const selectedOfferMode = getSelectedOfferMode(offerMode, {
     valueAvailable: Boolean(offerDeeplinkVal),
     referenceAvailable: Boolean(offerDeeplink),
@@ -212,18 +212,19 @@ function OfferModeToggle({
       }}
     >
       <OfferModeButton
+        active={selectedMode === 'reference'}
+        disabled={!referenceAvailable}
+        withDivider
+        onClick={() => onModeChange('reference')}
+      >
+        By reference
+      </OfferModeButton>
+      <OfferModeButton
         active={selectedMode === 'value'}
         disabled={!valueAvailable}
         onClick={() => onModeChange('value')}
       >
         By value
-      </OfferModeButton>
-      <OfferModeButton
-        active={selectedMode === 'reference'}
-        disabled={!referenceAvailable}
-        onClick={() => onModeChange('reference')}
-      >
-        By reference
       </OfferModeButton>
     </div>
   );
@@ -232,11 +233,13 @@ function OfferModeToggle({
 function OfferModeButton({
   active,
   disabled,
+  withDivider,
   onClick,
   children,
 }: {
   active: boolean;
   disabled: boolean;
+  withDivider?: boolean;
   onClick: () => void;
   children: string;
 }) {
@@ -247,7 +250,7 @@ function OfferModeButton({
       onClick={onClick}
       style={{
         border: 'none',
-        borderRight: children === 'By value' ? '1px solid var(--color-border)' : 'none',
+        borderRight: withDivider ? '1px solid var(--color-border)' : 'none',
         padding: '9px 16px',
         backgroundColor: active ? 'var(--color-primary)' : 'var(--color-surface)',
         color: active ? '#fff' : 'var(--color-text)',

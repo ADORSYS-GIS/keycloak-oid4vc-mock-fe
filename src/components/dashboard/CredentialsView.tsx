@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Ban, QrCode as QrCodeIcon, RefreshCw, Trash2 } from 'lucide-react';
+import { Ban, QrCode as QrCodeIcon, RefreshCw } from 'lucide-react';
 import { ErrorState, LoadingState, PrimaryButton } from './States';
 import type { CredentialStatus, DisplayIssuedCredential } from './types';
 import { formatTimestamp } from './format';
@@ -11,7 +11,6 @@ export function CredentialsView({
   revokingCredentialId,
   onRefresh,
   onRevoke,
-  onRemove,
 }: {
   credentials: DisplayIssuedCredential[];
   credentialsLoading: boolean;
@@ -19,7 +18,6 @@ export function CredentialsView({
   revokingCredentialId: string | null;
   onRefresh: () => void;
   onRevoke: (credential: DisplayIssuedCredential) => void;
-  onRemove: (credential: DisplayIssuedCredential) => void;
 }) {
   return (
     <div>
@@ -71,7 +69,6 @@ export function CredentialsView({
                 credential={credential}
                 revoking={revokingCredentialId === credential.id}
                 onRevoke={onRevoke}
-                onRemove={onRemove}
               />
             ))}
           </div>
@@ -135,12 +132,10 @@ function CredentialCard({
   credential,
   revoking,
   onRevoke,
-  onRemove,
 }: {
   credential: DisplayIssuedCredential;
   revoking: boolean;
   onRevoke: (credential: DisplayIssuedCredential) => void;
-  onRemove: (credential: DisplayIssuedCredential) => void;
 }) {
   return (
     <div
@@ -234,32 +229,6 @@ function CredentialCard({
         >
           <Ban size={16} aria-hidden="true" />
           {revoking ? 'Revoking...' : 'Revoke'}
-        </button>
-        <button
-          onClick={() => onRemove(credential)}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            backgroundColor: 'var(--color-surface)',
-            color: '#495057',
-            border: '1px solid #ced4da',
-            padding: '9px 16px',
-            borderRadius: 'var(--radius-sm)',
-            cursor: 'pointer',
-            fontSize: '0.9rem',
-            fontWeight: 500,
-            transition: 'background-color 0.2s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#f1f3f5';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'var(--color-surface)';
-          }}
-        >
-          <Trash2 size={16} aria-hidden="true" />
-          Remove
         </button>
       </div>
     </div>

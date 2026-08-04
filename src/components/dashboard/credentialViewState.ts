@@ -9,14 +9,13 @@ export function buildDisplayCredentials(
   owner: string
 ): DisplayIssuedCredential[] {
   const viewState = readCredentialViewState(owner);
-  const removedCredentialIds = new Set(viewState.removedCredentialIds);
   const revokedCredentialIds = new Set(Object.keys(viewState.revokedCredentials));
   const serverCredentialIds = new Set(
     credentials.map((credential) => credential.id).filter(Boolean)
   );
 
   const serverCredentials = credentials
-    .filter((credential) => credential.id && !removedCredentialIds.has(credential.id))
+    .filter((credential) => credential.id)
     .map((credential) =>
       toDisplayCredential(
         credential,
@@ -25,12 +24,7 @@ export function buildDisplayCredentials(
     );
 
   const retainedRevokedCredentials = Object.values(viewState.revokedCredentials)
-    .filter(
-      (credential) =>
-        credential.id &&
-        !removedCredentialIds.has(credential.id) &&
-        !serverCredentialIds.has(credential.id)
-    )
+    .filter((credential) => credential.id && !serverCredentialIds.has(credential.id))
     .map((credential) => toDisplayCredential(credential, 'revoked'));
 
   return [...serverCredentials, ...retainedRevokedCredentials];
@@ -49,23 +43,6 @@ export function rememberRevokedCredential(owner: string, credential: IssuedVerif
       ...viewState.revokedCredentials,
       [credential.id]: credential,
     },
-    removedCredentialIds: viewState.removedCredentialIds.filter(
-      (credentialId) => credentialId !== credential.id
-    ),
-  });
-}
-
-export function rememberRemovedCredential(owner: string, credentialId: string) {
-  const viewState = readCredentialViewState(owner);
-  const removedCredentialIds = new Set(viewState.removedCredentialIds);
-  removedCredentialIds.add(credentialId);
-
-  const revokedCredentials = { ...viewState.revokedCredentials };
-  delete revokedCredentials[credentialId];
-
-  writeCredentialViewState(owner, {
-    revokedCredentials,
-    removedCredentialIds: Array.from(removedCredentialIds),
   });
 }
 
@@ -82,7 +59,6 @@ function toDisplayCredential(
 function readCredentialViewState(owner: string): StoredCredentialViewState {
   const emptyState: StoredCredentialViewState = {
     revokedCredentials: {},
-    removedCredentialIds: [],
   };
 
   if (typeof window === 'undefined') return emptyState;
@@ -94,7 +70,6 @@ function readCredentialViewState(owner: string): StoredCredentialViewState {
     const stateByOwner = JSON.parse(rawState) as Record<string, StoredCredentialViewState>;
     return {
       revokedCredentials: stateByOwner[owner]?.revokedCredentials || {},
-      removedCredentialIds: stateByOwner[owner]?.removedCredentialIds || [],
     };
   } catch (error) {
     console.warn('Failed to read credential view state', error);

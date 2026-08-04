@@ -9,5 +9,4 @@ export type DisplayIssuedCredential = IssuedVerifiableCredential & {
 
 export type StoredCredentialViewState = {
   revokedCredentials: Record<string, IssuedVerifiableCredential>;
-  removedCredentialIds: string[];
 };

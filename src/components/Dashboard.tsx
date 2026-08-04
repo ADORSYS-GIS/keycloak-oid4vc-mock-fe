@@ -9,7 +9,6 @@ import { RevocationDialog } from './dashboard/RevocationDialog';
 import {
   buildDisplayCredentials,
   getCredentialViewOwner,
-  rememberRemovedCredential,
   rememberRevokedCredential,
 } from './dashboard/credentialViewState';
 import type { DashboardTab, DisplayIssuedCredential } from './dashboard/types';
@@ -132,15 +131,6 @@ const Dashboard = () => {
     }
   };
 
-  const removeIssuedCredential = (credential: DisplayIssuedCredential) => {
-    if (!credential.id) return;
-
-    rememberRemovedCredential(credentialViewOwner, credential.id);
-    setCredentials((currentCredentials) =>
-      currentCredentials.filter((issuedCredential) => issuedCredential.id !== credential.id)
-    );
-  };
-
   return (
     <div
       style={{
@@ -184,7 +174,6 @@ const Dashboard = () => {
               revokingCredentialId={revokingCredentialId}
               onRefresh={loadIssuedCredentials}
               onRevoke={openRevocationDialog}
-              onRemove={removeIssuedCredential}
             />
           )}
         </div>
