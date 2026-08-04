@@ -7,7 +7,12 @@ This project is a React application that demonstrates how to integrate Keycloak 
 - **User Authentication:** Login and logout functionality using Keycloak SSO.
 - **Protected Routes:** A dashboard page that is only accessible to authenticated users.
 - **OID4VC Integration:** A service to interact with an OID4VC provider.
+- **Issued Credential Revocation:** A client-driven flow for revoking issued credentials through Keycloak.
 - **Modern Tech Stack:** Built with React, Vite, and Tailwind CSS.
+
+## Flow Documentation
+
+- [Credential issuance and revocation flow](docs/credential-issuance-and-revocation-flow.md)
 
 ## Getting Started
 
