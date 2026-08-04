@@ -102,7 +102,7 @@ After a successful response, the frontend marks the credential as `revoked` loca
 
 ## Sequence Diagram
 
-![Credential issuance and revocation sequence diagram](assets/credential-flow-sequence.svg)
+![Credential issuance and revocation sequence diagram](assets/revocation.png)
 
 ## Revocation Behavior
 
