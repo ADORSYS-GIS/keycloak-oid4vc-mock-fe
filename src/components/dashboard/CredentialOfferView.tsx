@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import QRCode from 'react-qr-code';
 import { Check, Copy, ExternalLink, RefreshCw } from 'lucide-react';
 import { ErrorState, LoadingState, PrimaryButton } from './States';
+
+type OfferMode = 'value' | 'reference';
 
 export function CredentialOfferView({
   isLoading,
@@ -16,6 +18,30 @@ export function CredentialOfferView({
   offerDeeplinkVal: string | null;
   onRetry: () => void;
 }) {
+  const [offerMode, setOfferMode] = useState<OfferMode>('value');
+  const selectedOfferMode = getSelectedOfferMode(offerMode, {
+    valueAvailable: Boolean(offerDeeplinkVal),
+    referenceAvailable: Boolean(offerDeeplink),
+  });
+  const selectedOffer =
+    selectedOfferMode === 'value'
+      ? {
+          title: 'By value',
+          description: 'Full offer embedded in the link.',
+          link: offerDeeplinkVal,
+        }
+      : {
+          title: 'By reference',
+          description: 'Offer retrieved from the issuer endpoint.',
+          link: offerDeeplink,
+        };
+
+  useEffect(() => {
+    if (selectedOfferMode !== offerMode) {
+      setOfferMode(selectedOfferMode);
+    }
+  }, [offerMode, selectedOfferMode]);
+
   return (
     <div>
       <div
@@ -61,31 +87,16 @@ export function CredentialOfferView({
             <ErrorState message={error} actionLabel="Try Again" onAction={onRetry} />
           )}
 
-          {!isLoading && !error && (
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-                gap: '24px',
-                width: '100%',
-                alignItems: 'start',
-              }}
-            >
-              {offerDeeplinkVal && (
-                <OfferCard
-                  title="By value"
-                  description="Full offer embedded in the link."
-                  link={offerDeeplinkVal}
-                />
-              )}
-              {offerDeeplink && (
-                <OfferCard
-                  title="By reference"
-                  description="Offer retrieved from the issuer endpoint."
-                  link={offerDeeplink}
-                />
-              )}
-            </div>
+          {!isLoading && !error && selectedOffer.link && (
+            <OfferCard
+              title={selectedOffer.title}
+              description={selectedOffer.description}
+              link={selectedOffer.link}
+              selectedMode={selectedOfferMode}
+              valueAvailable={Boolean(offerDeeplinkVal)}
+              referenceAvailable={Boolean(offerDeeplink)}
+              onModeChange={setOfferMode}
+            />
           )}
         </div>
 
@@ -101,14 +112,32 @@ export function CredentialOfferView({
   );
 }
 
+function getSelectedOfferMode(
+  requestedMode: OfferMode,
+  { valueAvailable, referenceAvailable }: { valueAvailable: boolean; referenceAvailable: boolean }
+): OfferMode {
+  if (requestedMode === 'value' && valueAvailable) return 'value';
+  if (requestedMode === 'reference' && referenceAvailable) return 'reference';
+  if (valueAvailable) return 'value';
+  return 'reference';
+}
+
 function OfferCard({
   title,
   description,
   link,
+  selectedMode,
+  valueAvailable,
+  referenceAvailable,
+  onModeChange,
 }: {
   title: string;
   description: string;
   link: string;
+  selectedMode: OfferMode;
+  valueAvailable: boolean;
+  referenceAvailable: boolean;
+  onModeChange: (mode: OfferMode) => void;
 }) {
   return (
     <div
@@ -116,13 +145,21 @@ function OfferCard({
         backgroundColor: 'var(--color-bg)',
         border: '1px solid var(--color-border)',
         borderRadius: 'var(--radius-md)',
-        padding: '24px',
+        padding: '20px',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: '20px',
+        gap: '16px',
+        width: 'min(420px, 100%)',
       }}
     >
+      <OfferModeToggle
+        selectedMode={selectedMode}
+        valueAvailable={valueAvailable}
+        referenceAvailable={referenceAvailable}
+        onModeChange={onModeChange}
+      />
+
       <div style={{ textAlign: 'center' }}>
         <h3 style={{ margin: '0 0 6px', fontSize: '1.1rem', color: 'var(--color-text)' }}>
           {title}
@@ -150,6 +187,79 @@ function OfferCard({
 
       <CopyLinkField link={link} />
     </div>
+  );
+}
+
+function OfferModeToggle({
+  selectedMode,
+  valueAvailable,
+  referenceAvailable,
+  onModeChange,
+}: {
+  selectedMode: OfferMode;
+  valueAvailable: boolean;
+  referenceAvailable: boolean;
+  onModeChange: (mode: OfferMode) => void;
+}) {
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        border: '1px solid var(--color-border)',
+        borderRadius: 'var(--radius-sm)',
+        overflow: 'hidden',
+        backgroundColor: 'var(--color-surface)',
+      }}
+    >
+      <OfferModeButton
+        active={selectedMode === 'value'}
+        disabled={!valueAvailable}
+        onClick={() => onModeChange('value')}
+      >
+        By value
+      </OfferModeButton>
+      <OfferModeButton
+        active={selectedMode === 'reference'}
+        disabled={!referenceAvailable}
+        onClick={() => onModeChange('reference')}
+      >
+        By reference
+      </OfferModeButton>
+    </div>
+  );
+}
+
+function OfferModeButton({
+  active,
+  disabled,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  disabled: boolean;
+  onClick: () => void;
+  children: string;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      style={{
+        border: 'none',
+        borderRight: children === 'By value' ? '1px solid var(--color-border)' : 'none',
+        padding: '9px 16px',
+        backgroundColor: active ? 'var(--color-primary)' : 'var(--color-surface)',
+        color: active ? '#fff' : 'var(--color-text)',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        fontSize: '0.9rem',
+        fontWeight: 500,
+        opacity: disabled ? 0.55 : 1,
+        transition: 'background-color 0.2s ease, color 0.2s ease',
+      }}
+    >
+      {children}
+    </button>
   );
 }
 
