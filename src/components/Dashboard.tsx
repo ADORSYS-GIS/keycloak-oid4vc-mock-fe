@@ -1,32 +1,47 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import oid4vcService from '../services/oid4vc.service';
-import QRCode from 'react-qr-code';
+import { CredentialOfferView } from './dashboard/CredentialOfferView';
+import { CredentialsView } from './dashboard/CredentialsView';
+import { DashboardHeader } from './dashboard/DashboardHeader';
+import { DashboardTabs } from './dashboard/DashboardTabs';
+import { RevocationDialog } from './dashboard/RevocationDialog';
+import {
+  buildDisplayCredentials,
+  getCredentialViewOwner,
+  rememberRevokedCredential,
+} from './dashboard/credentialViewState';
+import type { DashboardTab, DisplayIssuedCredential } from './dashboard/types';
 
 const Dashboard = () => {
   const { userProfile, logout } = useAuth();
+  const credentialViewOwner = getCredentialViewOwner(userProfile);
+  const [activeTab, setActiveTab] = useState<DashboardTab>('offer');
   const [offerDeeplink, setOfferDeeplink] = useState<string | null>(null);
   const [offerDeeplinkVal, setOfferDeeplinkVal] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [credentials, setCredentials] = useState<DisplayIssuedCredential[]>([]);
+  const [credentialsLoading, setCredentialsLoading] = useState(false);
+  const [credentialsError, setCredentialsError] = useState<string | null>(null);
+  const [revokingCredentialId, setRevokingCredentialId] = useState<string | null>(null);
+  const [credentialToRevoke, setCredentialToRevoke] = useState<DisplayIssuedCredential | null>(
+    null
+  );
+  const [revocationReason, setRevocationReason] = useState('');
+  const [revocationReasonError, setRevocationReasonError] = useState<string | null>(null);
+  const [importantNotesExpanded, setImportantNotesExpanded] = useState(true);
 
-  useEffect(() => {
-    prepareQr();
-  }, []);
-
-  const prepareQr = async () => {
+  const prepareQr = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      // Retrieve credential offer links
-      // Each call creates a unique offer in Keycloak
       const [offerLink, offerLinkVal] = await Promise.all([
-        oid4vcService.getCredentialOfferDeeplink(true), // By reference
-        oid4vcService.getCredentialOfferDeeplink(false), // By value
+        oid4vcService.getCredentialOfferDeeplink(true),
+        oid4vcService.getCredentialOfferDeeplink(false),
       ]);
 
-      // Update state with retrieved data
       setOfferDeeplink(offerLink);
       setOfferDeeplinkVal(offerLinkVal);
     } catch (error) {
@@ -35,241 +50,153 @@ const Dashboard = () => {
     } finally {
       setIsLoading(false);
     }
+  }, []);
+
+  const loadIssuedCredentials = useCallback(async () => {
+    setCredentialsLoading(true);
+    setCredentialsError(null);
+
+    try {
+      const issuedCredentials = await oid4vcService.getIssuedCredentials();
+      setCredentials(buildDisplayCredentials(issuedCredentials, credentialViewOwner));
+    } catch (error) {
+      console.error('Failed to retrieve issued credentials', error);
+      setCredentialsError('Failed to retrieve issued credentials. Please try again.');
+    } finally {
+      setCredentialsLoading(false);
+    }
+  }, [credentialViewOwner]);
+
+  useEffect(() => {
+    prepareQr();
+  }, [prepareQr]);
+
+  useEffect(() => {
+    if (activeTab === 'credentials') {
+      loadIssuedCredentials();
+    }
+  }, [activeTab, loadIssuedCredentials]);
+
+  const openRevocationDialog = (credential: DisplayIssuedCredential) => {
+    if (!credential.id) {
+      setCredentialsError(
+        'This credential cannot be revoked because it has no issued credential id.'
+      );
+      return;
+    }
+
+    setCredentialToRevoke(credential);
+    setRevocationReason('');
+    setRevocationReasonError(null);
+    setImportantNotesExpanded(true);
+  };
+
+  const closeRevocationDialog = () => {
+    if (revokingCredentialId) return;
+
+    setCredentialToRevoke(null);
+    setRevocationReason('');
+    setRevocationReasonError(null);
+  };
+
+  const confirmRevocation = async () => {
+    if (!credentialToRevoke?.id) return;
+
+    const reason = revocationReason.trim();
+    if (!reason) {
+      setRevocationReasonError('Reason for revocation is required.');
+      return;
+    }
+
+    setRevokingCredentialId(credentialToRevoke.id);
+    setCredentialsError(null);
+    setRevocationReasonError(null);
+
+    try {
+      await oid4vcService.revokeIssuedCredential(credentialToRevoke.id, reason);
+      rememberRevokedCredential(credentialViewOwner, credentialToRevoke);
+      setCredentials((currentCredentials) =>
+        currentCredentials.map((issuedCredential) =>
+          issuedCredential.id === credentialToRevoke.id
+            ? { ...issuedCredential, status: 'revoked' }
+            : issuedCredential
+        )
+      );
+      closeRevocationDialog();
+    } catch (error) {
+      console.error('Failed to revoke issued credential', error);
+      setCredentialsError('Failed to revoke issued credential. Please try again.');
+    } finally {
+      setRevokingCredentialId(null);
+    }
   };
 
   return (
     <div
       style={{
+        minHeight: '100vh',
+        backgroundColor: 'var(--color-bg)',
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: 'calc(100vh - 160px)',
-        padding: '80px 40px',
-        backgroundColor: '#f8f9fa',
-        fontFamily: 'Arial, sans-serif',
       }}
     >
-      {/* Header with user info and logout */}
-      <div
+      <DashboardHeader userProfile={userProfile} onLogout={logout} />
+
+      <main
         style={{
-          position: 'absolute',
-          top: '20px',
-          right: '20px',
+          flex: 1,
+          padding: '32px 24px',
           display: 'flex',
-          alignItems: 'center',
-          gap: '20px',
+          justifyContent: 'center',
         }}
       >
-        <div style={{ textAlign: 'right' }}>
-          <p style={{ margin: 0, fontWeight: 500, color: '#087ca8' }}>
-            {userProfile?.firstName} {userProfile?.lastName}
-          </p>
-          <p style={{ margin: 0, fontSize: '0.9rem', color: '#6c757d' }}>{userProfile?.email}</p>
-        </div>
-        <button
-          onClick={logout}
-          style={{
-            backgroundColor: '#dc3545',
-            color: '#fff',
-            border: 'none',
-            padding: '10px 20px',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '0.95rem',
-            fontWeight: 500,
-          }}
-        >
-          Logout
-        </button>
-      </div>
-
-      {/* Main content */}
-      <div
-        style={{
-          maxWidth: '600px',
-          width: '100%',
-          textAlign: 'center',
-        }}
-      >
-        <h1
-          style={{
-            fontSize: '2.5rem',
-            marginBottom: '20px',
-            fontWeight: 400,
-            color: '#212529',
-          }}
-        >
-          You are logged in
-        </h1>
-
         <div
           style={{
-            fontSize: '1.125rem',
-            marginBottom: '20px',
-            lineHeight: '1.6',
-            color: '#6c757d',
+            width: '100%',
+            maxWidth: activeTab === 'credentials' ? '1000px' : '880px',
           }}
         >
-          <p style={{ margin: 0 }}>Please scan the displayed QR code with your EUDI Wallet App.</p>
-          <p style={{ margin: 0, fontSize: '1rem' }}>
-            Alternatively, click on the offer link to open it directly in your wallet.
-          </p>
-        </div>
+          <DashboardTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            minHeight: '480px',
-            gap: '30px',
+          {activeTab === 'offer' ? (
+            <CredentialOfferView
+              isLoading={isLoading}
+              error={error}
+              offerDeeplink={offerDeeplink}
+              offerDeeplinkVal={offerDeeplinkVal}
+              onRetry={prepareQr}
+            />
+          ) : (
+            <CredentialsView
+              credentials={credentials}
+              credentialsLoading={credentialsLoading}
+              credentialsError={credentialsError}
+              revokingCredentialId={revokingCredentialId}
+              onRefresh={loadIssuedCredentials}
+              onRevoke={openRevocationDialog}
+            />
+          )}
+        </div>
+      </main>
+
+      {credentialToRevoke && (
+        <RevocationDialog
+          credential={credentialToRevoke}
+          reason={revocationReason}
+          reasonError={revocationReasonError}
+          importantNotesExpanded={importantNotesExpanded}
+          isRevoking={revokingCredentialId === credentialToRevoke.id}
+          onReasonChange={(value) => {
+            setRevocationReason(value);
+            if (value.trim()) setRevocationReasonError(null);
           }}
-        >
-          {/* Loading state */}
-          {isLoading && (
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '20px',
-              }}
-            >
-              <div
-                style={{
-                  width: '60px',
-                  height: '60px',
-                  border: '4px solid #e9ecef',
-                  borderTop: '4px solid #0865f0',
-                  borderRadius: '50%',
-                  animation: 'spin 1s linear infinite',
-                }}
-              />
-              <p style={{ margin: 0, color: '#6c757d' }}>Renewing credential offer...</p>
-            </div>
-          )}
-
-          {/* Error state */}
-          {!isLoading && error && (
-            <div
-              style={{
-                backgroundColor: '#f8d7da',
-                color: '#721c24',
-                padding: '20px',
-                borderRadius: '8px',
-                border: '1px solid #f5c6cb',
-              }}
-            >
-              <p style={{ margin: 0, fontWeight: 500 }}>{error}</p>
-              <button
-                onClick={prepareQr}
-                style={{
-                  marginTop: '15px',
-                  backgroundColor: '#721c24',
-                  color: '#fff',
-                  border: 'none',
-                  padding: '10px 20px',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '0.95rem',
-                }}
-              >
-                Try Again
-              </button>
-            </div>
-          )}
-
-          {/* Credential offer loaded (by value) */}
-          {!isLoading &&
-            !error &&
-            offerDeeplinkVal &&
-            showCredentialOffer(offerDeeplinkVal, 'By value')}
-
-          {/* Credential offer loaded (by reference) */}
-          {!isLoading &&
-            !error &&
-            offerDeeplink &&
-            showCredentialOffer(offerDeeplink, 'By reference')}
-
-          {/* Renew button */}
-          {!isLoading && !error && (
-            <div style={{ marginTop: '20px' }}>
-              <button
-                onClick={prepareQr}
-                style={{
-                  backgroundColor: '#0865f0',
-                  color: '#fff',
-                  border: 'none',
-                  padding: '12px 24px',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '1rem',
-                  fontWeight: 500,
-                }}
-              >
-                Renew credential offer
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <style>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      `}</style>
+          onToggleImportantNotes={() => setImportantNotesExpanded((expanded) => !expanded)}
+          onCancel={closeRevocationDialog}
+          onConfirm={confirmRevocation}
+        />
+      )}
     </div>
   );
 };
-
-function showCredentialOffer(offerLink: string, title: string) {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: '20px',
-      }}
-    >
-      <div>
-        <p
-          style={{
-            fontSize: '1.25rem',
-            fontWeight: 600,
-            marginBottom: '15px',
-            color: '#212529',
-            fontStyle: 'italic',
-          }}
-        >
-          {title}
-        </p>
-        <div style={{ maxWidth: '800px', wordBreak: 'break-all' }}>
-          <a href={offerLink} target="_blank" rel="noopener noreferrer">
-            {offerLink}
-          </a>
-        </div>
-      </div>
-      <div
-        style={{
-          backgroundColor: '#fff',
-          padding: '20px',
-          borderRadius: '12px',
-          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-        }}
-      >
-        <QRCode
-          value={offerLink}
-          size={300}
-          style={{ height: 'auto', maxWidth: '100%', width: '100%' }}
-          viewBox={`0 0 300 300`}
-        />
-      </div>
-    </div>
-  );
-}
 
 export default Dashboard;

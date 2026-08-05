@@ -11,6 +11,25 @@ interface CredentialOffer {
   [key: string]: unknown;
 }
 
+export interface IssuedVerifiableCredential {
+  id: string;
+  userId?: string;
+  credentialType?: string;
+  issuedAt?: number;
+  expiresAt?: number;
+  clientId?: string;
+  clientName?: string;
+  clientBaseUrl?: string;
+  revision?: string;
+}
+
+interface CredentialRevocationResponse {
+  success?: boolean;
+  message?: string;
+  error?: string;
+  error_description?: string;
+}
+
 export const CredentialConfigurationId = {
   DATEV_COMPANY: 'DatevCompanyCredential',
 } as const;
@@ -32,6 +51,8 @@ class Oid4vcService {
   private static readonly ENDPOINTS = {
     CREATE_CREDENTIAL_OFFER: '/protocol/oid4vc/create-credential-offer',
     CREDENTIAL_OFFER_URI: '/protocol/oid4vc/credential-offer-uri',
+    ISSUED_VERIFIABLE_CREDENTIALS: '/account/issued-verifiable-credentials',
+    TOKEN_REVOCATION: '/protocol/openid-connect/revoke',
   };
 
   private getBaseUrl(): string {
@@ -48,6 +69,26 @@ class Oid4vcService {
       Authorization: `Bearer ${keycloak.token}`,
       Accept: 'application/json',
     };
+  }
+
+  private async getJsonResponse<T>(url: string, context: string): Promise<T> {
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(url, { headers });
+
+    if (!response.ok) {
+      throw new Error(`${context} failed: ${await this.getResponseError(response)}`);
+    }
+
+    return response.json();
+  }
+
+  private async getResponseError(response: Response): Promise<string> {
+    try {
+      const data = (await response.json()) as CredentialRevocationResponse;
+      return data.error_description || data.message || data.error || response.statusText;
+    } catch {
+      return response.statusText;
+    }
   }
 
   private getUsername(): string {
@@ -304,6 +345,43 @@ class Oid4vcService {
 
     const offer = await this.fetchOffer(offerUrl);
     return this.buildOfferDeeplink(offer, offerUrl, 'json');
+  }
+
+  async getIssuedCredentials(): Promise<IssuedVerifiableCredential[]> {
+    return this.getJsonResponse<IssuedVerifiableCredential[]>(
+      `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.ISSUED_VERIFIABLE_CREDENTIALS}`,
+      'Issued credentials lookup'
+    );
+  }
+
+  async revokeIssuedCredential(
+    credentialId: string,
+    reason = 'Client app revocation'
+  ): Promise<void> {
+    const headers = await this.getAuthHeaders();
+    const body = new URLSearchParams({
+      mode: 'issued_credential_revocation',
+      credential_id: credentialId,
+      reason,
+    });
+
+    const response = await fetch(
+      `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.TOKEN_REVOCATION}`,
+      {
+        method: 'POST',
+        headers: {
+          ...headers,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body,
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Issued credential revocation failed: ${await this.getResponseError(response)}`
+      );
+    }
   }
 }
 
