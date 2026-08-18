@@ -146,7 +146,7 @@ class Oid4vcService {
     const queryParams: QueryParams = {
       credential_configuration_id: credentialConfigurationId,
       target_user: this.getUsername(),
-      pre_authorized: 'true',
+      pre_authorized: 'false',
     };
 
     return this.fetchCredentialOfferUri(
@@ -270,7 +270,7 @@ class Oid4vcService {
     const queryParams: QueryParams = {
       credential_configuration_id: credentialConfigurationId,
       target_user: this.getUsername(),
-      pre_authorized: 'true',
+      pre_authorized: 'false',
       type: 'qr-code',
     };
 
