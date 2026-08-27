@@ -38,6 +38,9 @@ export const DEFAULT_CREDENTIAL_CONFIGURATION_ID =
   import.meta.env.VITE_OID4VC_DEFAULT_CREDENTIAL_CONFIGURATION_ID ||
   CredentialConfigurationId.DATEV_COMPANY;
 
+export const IS_PRE_AUTHORIZED_FLOW =
+  String(import.meta.env.VITE_OID4VC_PRE_AUTHORIZED).trim().toLowerCase() === 'true';
+
 const EndpointType = {
   KEYCLOAK_26_6_0: 'keycloak_26_6_0',
   PRE_KEYCLOAK_26_6_0: 'pre_keycloak_26_6_0',
@@ -146,7 +149,7 @@ class Oid4vcService {
     const queryParams: QueryParams = {
       credential_configuration_id: credentialConfigurationId,
       target_user: this.getUsername(),
-      pre_authorized: 'true',
+      pre_authorized: IS_PRE_AUTHORIZED_FLOW ? 'true' : 'false',
     };
 
     return this.fetchCredentialOfferUri(
@@ -270,7 +273,7 @@ class Oid4vcService {
     const queryParams: QueryParams = {
       credential_configuration_id: credentialConfigurationId,
       target_user: this.getUsername(),
-      pre_authorized: 'true',
+      pre_authorized: IS_PRE_AUTHORIZED_FLOW ? 'true' : 'false',
       type: 'qr-code',
     };
 
