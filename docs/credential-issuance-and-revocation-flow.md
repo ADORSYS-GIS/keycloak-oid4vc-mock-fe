@@ -115,6 +115,49 @@ The revocation action must remain server-authoritative:
 - Keycloak must update the status list server.
 - The frontend only reflects the successful server response.
 
+## Admin-Initiated Flows (Admin Mode)
+
+A user holding the realm role `credential-offer-create` can act on behalf of other users in the same realm. The dashboard shows an "On behalf of user" selector in that case; leaving it blank keeps the dashboard scoped to the logged-in account. The role gate is a UI convenience only — the server must enforce the role for any request that targets another user.
+
+### Create an Offer for Another User
+
+Same calls as above, with the target parameter set to the selected username instead of the logged-in user:
+
+```text
+GET /realms/{realm}/protocol/oid4vc/create-credential-offer
+    ?credential_configuration_id={credentialType}
+    &target_user={selectedUsername}
+    &pre_authorized=true
+```
+
+with the pre-26.6 fallback `username={selectedUsername}` on `credential-offer-uri`. Keycloak rejects the request with a `403` unless the caller holds `credential-offer-create` when the target differs from the caller.
+
+### List Credentials Issued to Another User
+
+The admin list uses the token status plugin endpoint instead of the account endpoint, so it can report the real server-side status:
+
+```text
+GET /realms/{realm}/protocol/openid-connect/issued-credential-status?target_user={selectedUsername}
+```
+
+The response wraps entries in a `credentials` array with `credentialId`, `verifiableCredentialId`, `issuedAt`, `expiresAt`, `clientId`, `revision`, and `status` (`VALID`, `INVALID`, `SUSPENDED`, or `UNKNOWN`). The frontend maps `credentialId` to its `id` field and displays `INVALID` as revoked (non-revocable); `VALID`, `SUSPENDED`, and `UNKNOWN` stay revocable.
+
+### Revoke a Credential Issued to Another User
+
+The revocation call is the same form as the self-service one with an extra field identifying the target user (only included when targeting another user):
+
+```text
+POST /realms/{realm}/protocol/openid-connect/revoke
+Content-Type: application/x-www-form-urlencoded
+
+mode=issued_credential_revocation
+credential_id={issuedCredentialId}
+reason={userProvidedReason}
+target_user={selectedUsername}
+```
+
+After a successful response the frontend marks the credential `revoked` under the target user's view state, so it stays visible and auditable in the admin list.
+
 ## Presentation Status Check
 
 When the credential is later used during presentation, the verifier follows the `status_list` claim embedded in the credential:

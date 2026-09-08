@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import oid4vcService from '../services/oid4vc.service';
 import { CredentialOfferView } from './dashboard/CredentialOfferView';
@@ -14,8 +14,12 @@ import {
 import type { DashboardTab, DisplayIssuedCredential } from './dashboard/types';
 
 const Dashboard = () => {
-  const { userProfile, logout } = useAuth();
+  const { userProfile, logout, hasRole } = useAuth();
   const credentialViewOwner = getCredentialViewOwner(userProfile);
+  const isAdmin = hasRole('credential-offer-create');
+  // Applied admin target ('' = current user). Only set by the admin target selector.
+  const [adminTargetUser, setAdminTargetUser] = useState('');
+  const [adminTargetDraft, setAdminTargetDraft] = useState('');
   const [activeTab, setActiveTab] = useState<DashboardTab>('offer');
   const [offerDeeplink, setOfferDeeplink] = useState<string | null>(null);
   const [offerDeeplinkVal, setOfferDeeplinkVal] = useState<string | null>(null);
@@ -32,14 +36,31 @@ const Dashboard = () => {
   const [revocationReasonError, setRevocationReasonError] = useState<string | null>(null);
   const [importantNotesExpanded, setImportantNotesExpanded] = useState(true);
 
+  const getActiveTargetUser = useCallback((): string | undefined => {
+    const target = adminTargetUser.trim();
+    return target || undefined;
+  }, [adminTargetUser]);
+
+  const applyAdminTarget = (target: string) => {
+    const trimmed = target.trim();
+    setAdminTargetUser(trimmed);
+    setAdminTargetDraft(trimmed);
+  };
+
+  const handleAdminTargetSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    applyAdminTarget(adminTargetDraft);
+  };
+
   const prepareQr = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
     try {
+      const targetUser = getActiveTargetUser();
       const [offerLink, offerLinkVal] = await Promise.all([
-        oid4vcService.getCredentialOfferDeeplink(true),
-        oid4vcService.getCredentialOfferDeeplink(false),
+        oid4vcService.getCredentialOfferDeeplink(true, undefined, targetUser),
+        oid4vcService.getCredentialOfferDeeplink(false, undefined, targetUser),
       ]);
 
       setOfferDeeplink(offerLink);
@@ -50,22 +71,26 @@ const Dashboard = () => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [getActiveTargetUser]);
 
   const loadIssuedCredentials = useCallback(async () => {
     setCredentialsLoading(true);
     setCredentialsError(null);
 
     try {
-      const issuedCredentials = await oid4vcService.getIssuedCredentials();
-      setCredentials(buildDisplayCredentials(issuedCredentials, credentialViewOwner));
+      const targetUser = getActiveTargetUser();
+      const viewOwner = targetUser || credentialViewOwner;
+      const issuedCredentials = targetUser
+        ? await oid4vcService.getIssuedCredentialsFor(targetUser)
+        : await oid4vcService.getIssuedCredentials();
+      setCredentials(buildDisplayCredentials(issuedCredentials, viewOwner));
     } catch (error) {
       console.error('Failed to retrieve issued credentials', error);
       setCredentialsError('Failed to retrieve issued credentials. Please try again.');
     } finally {
       setCredentialsLoading(false);
     }
-  }, [credentialViewOwner]);
+  }, [credentialViewOwner, getActiveTargetUser]);
 
   useEffect(() => {
     prepareQr();
@@ -113,8 +138,10 @@ const Dashboard = () => {
     setRevocationReasonError(null);
 
     try {
-      await oid4vcService.revokeIssuedCredential(credentialToRevoke.id, reason);
-      rememberRevokedCredential(credentialViewOwner, credentialToRevoke);
+      const targetUser = getActiveTargetUser();
+      const viewOwner = targetUser || credentialViewOwner;
+      await oid4vcService.revokeIssuedCredential(credentialToRevoke.id, reason, targetUser);
+      rememberRevokedCredential(viewOwner, credentialToRevoke);
       setCredentials((currentCredentials) =>
         currentCredentials.map((issuedCredential) =>
           issuedCredential.id === credentialToRevoke.id
@@ -156,6 +183,89 @@ const Dashboard = () => {
             maxWidth: activeTab === 'credentials' ? '1000px' : '880px',
           }}
         >
+          {isAdmin && (
+            <form
+              onSubmit={handleAdminTargetSubmit}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                flexWrap: 'wrap',
+                marginBottom: '16px',
+                padding: '14px 16px',
+                backgroundColor: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-md)',
+              }}
+            >
+              <label
+                htmlFor="admin-target-user"
+                style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--color-text)' }}
+              >
+                On behalf of user
+              </label>
+              <input
+                id="admin-target-user"
+                type="text"
+                value={adminTargetDraft}
+                onChange={(event) => setAdminTargetDraft(event.target.value)}
+                placeholder="username — leave blank for your own account"
+                style={{
+                  flex: '1',
+                  minWidth: '220px',
+                  padding: '9px 12px',
+                  fontSize: '0.9rem',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: 'var(--color-surface)',
+                  color: 'var(--color-text)',
+                }}
+              />
+              <button
+                type="submit"
+                style={{
+                  backgroundColor: 'var(--color-primary)',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '9px 18px',
+                  borderRadius: 'var(--radius-sm)',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                  fontWeight: 600,
+                }}
+              >
+                Apply
+              </button>
+              {adminTargetUser && (
+                <button
+                  type="button"
+                  onClick={() => applyAdminTarget('')}
+                  style={{
+                    backgroundColor: 'transparent',
+                    color: 'var(--color-muted)',
+                    border: 'none',
+                    padding: '9px 12px',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem',
+                    textDecoration: 'underline',
+                  }}
+                >
+                  Back to my account
+                </button>
+              )}
+              {adminTargetUser && (
+                <span
+                  style={{
+                    fontSize: '0.85rem',
+                    color: 'var(--color-muted)',
+                  }}
+                >
+                  Managing credentials for <strong>{adminTargetUser}</strong>
+                </span>
+              )}
+            </form>
+          )}
+
           <DashboardTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
           {activeTab === 'offer' ? (
@@ -172,6 +282,7 @@ const Dashboard = () => {
               credentialsLoading={credentialsLoading}
               credentialsError={credentialsError}
               revokingCredentialId={revokingCredentialId}
+              forUser={getActiveTargetUser()}
               onRefresh={loadIssuedCredentials}
               onRevoke={openRevocationDialog}
             />

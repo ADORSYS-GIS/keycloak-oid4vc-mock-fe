@@ -9,6 +9,7 @@ export function CredentialsView({
   credentialsLoading,
   credentialsError,
   revokingCredentialId,
+  forUser,
   onRefresh,
   onRevoke,
 }: {
@@ -16,6 +17,8 @@ export function CredentialsView({
   credentialsLoading: boolean;
   credentialsError: string | null;
   revokingCredentialId: string | null;
+  /** Target user whose credentials are listed (admin view); absent when listing the current user. */
+  forUser?: string;
   onRefresh: () => void;
   onRevoke: (credential: DisplayIssuedCredential) => void;
 }) {
@@ -51,7 +54,7 @@ export function CredentialsView({
       )}
 
       {!credentialsLoading && !credentialsError && credentials.length === 0 && (
-        <EmptyCredentialsState />
+        <EmptyCredentialsState forUser={forUser} />
       )}
 
       {!credentialsLoading && !credentialsError && credentials.length > 0 && (
@@ -84,7 +87,7 @@ export function CredentialsView({
   );
 }
 
-function EmptyCredentialsState() {
+function EmptyCredentialsState({ forUser }: { forUser?: string }) {
   return (
     <div
       style={{
@@ -122,7 +125,9 @@ function EmptyCredentialsState() {
         No issued credentials found
       </h3>
       <p style={{ margin: 0, color: 'var(--color-muted)', lineHeight: 1.6 }}>
-        Once a credential is issued to your account, it will appear here.
+        {forUser
+          ? `Once a credential is issued to ${forUser}, it will appear here.`
+          : 'Once a credential is issued to your account, it will appear here.'}
       </p>
     </div>
   );

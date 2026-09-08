@@ -21,6 +21,22 @@ export interface IssuedVerifiableCredential {
   clientName?: string;
   clientBaseUrl?: string;
   revision?: string;
+  /** Server-reported revoked state (INVALID status). Absent for self-service account lookups. */
+  revoked?: boolean;
+}
+
+interface IssuedCredentialStatusResponse {
+  credentials: IssuedCredentialStatusEntry[];
+}
+
+interface IssuedCredentialStatusEntry {
+  credentialId: string;
+  verifiableCredentialId?: string;
+  issuedAt?: number;
+  expiresAt?: number | null;
+  clientId?: string;
+  revision?: string;
+  status: string;
 }
 
 interface CredentialRevocationResponse {
@@ -52,6 +68,7 @@ class Oid4vcService {
     CREATE_CREDENTIAL_OFFER: '/protocol/oid4vc/create-credential-offer',
     CREDENTIAL_OFFER_URI: '/protocol/oid4vc/credential-offer-uri',
     ISSUED_VERIFIABLE_CREDENTIALS: '/account/issued-verifiable-credentials',
+    ISSUED_CREDENTIAL_STATUS: '/protocol/openid-connect/issued-credential-status',
     TOKEN_REVOCATION: '/protocol/openid-connect/revoke',
   };
 
@@ -131,21 +148,23 @@ class Oid4vcService {
   }
 
   async getCredentialOfferUri(
-    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID
+    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID,
+    targetUser: string = this.getUsername()
   ): Promise<string> {
     return this.withFallback(
-      () => this.getCredentialOfferUriKeycloak26_6_0(credentialConfigurationId),
-      () => this.getCredentialOfferUriPreKeycloak26_6_0(credentialConfigurationId),
+      () => this.getCredentialOfferUriKeycloak26_6_0(credentialConfigurationId, targetUser),
+      () => this.getCredentialOfferUriPreKeycloak26_6_0(credentialConfigurationId, targetUser),
       'CredentialOfferUri'
     );
   }
 
   private async getCredentialOfferUriKeycloak26_6_0(
-    credentialConfigurationId: string
+    credentialConfigurationId: string,
+    targetUser: string
   ): Promise<string> {
     const queryParams: QueryParams = {
       credential_configuration_id: credentialConfigurationId,
-      target_user: this.getUsername(),
+      target_user: targetUser,
       pre_authorized: 'true',
     };
 
@@ -157,11 +176,12 @@ class Oid4vcService {
   }
 
   private async getCredentialOfferUriPreKeycloak26_6_0(
-    credentialConfigurationId: string
+    credentialConfigurationId: string,
+    targetUser: string
   ): Promise<string> {
     const queryParams: QueryParams = {
       credential_configuration_id: credentialConfigurationId,
-      username: this.getUsername(),
+      username: targetUser,
     };
 
     return this.fetchCredentialOfferUri(
@@ -255,21 +275,23 @@ class Oid4vcService {
   }
 
   async getCredentialOfferPng(
-    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID
+    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID,
+    targetUser: string = this.getUsername()
   ): Promise<Blob> {
     return this.withFallback(
-      () => this.getCredentialOfferPngKeycloak26_6_0(credentialConfigurationId),
-      () => this.getCredentialOfferPngPreKeycloak26_6_0(credentialConfigurationId),
+      () => this.getCredentialOfferPngKeycloak26_6_0(credentialConfigurationId, targetUser),
+      () => this.getCredentialOfferPngPreKeycloak26_6_0(credentialConfigurationId, targetUser),
       'CredentialOfferPng'
     );
   }
 
   private async getCredentialOfferPngKeycloak26_6_0(
-    credentialConfigurationId: string
+    credentialConfigurationId: string,
+    targetUser: string
   ): Promise<Blob> {
     const queryParams: QueryParams = {
       credential_configuration_id: credentialConfigurationId,
-      target_user: this.getUsername(),
+      target_user: targetUser,
       pre_authorized: 'true',
       type: 'qr-code',
     };
@@ -282,11 +304,12 @@ class Oid4vcService {
   }
 
   private async getCredentialOfferPngPreKeycloak26_6_0(
-    credentialConfigurationId: string
+    credentialConfigurationId: string,
+    targetUser: string
   ): Promise<Blob> {
     const queryParams: QueryParams = {
       credential_configuration_id: credentialConfigurationId,
-      username: this.getUsername(),
+      username: targetUser,
       type: 'qr-code',
     };
 
@@ -322,10 +345,11 @@ class Oid4vcService {
   }
 
   async getCredentialOfferQrDataUrl(
-    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID
+    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID,
+    targetUser: string = this.getUsername()
   ): Promise<string> {
     try {
-      const pngBlob = await this.getCredentialOfferPng(credentialConfigurationId);
+      const pngBlob = await this.getCredentialOfferPng(credentialConfigurationId, targetUser);
       return this.blobToDataURL(pngBlob);
     } catch (error) {
       console.error('Failed to get QR code data URL:', error);
@@ -335,9 +359,10 @@ class Oid4vcService {
 
   async getCredentialOfferDeeplink(
     byReference: boolean = true,
-    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID
+    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID,
+    targetUser: string = this.getUsername()
   ): Promise<string> {
-    const offerUrl = await this.getCredentialOfferUri(credentialConfigurationId);
+    const offerUrl = await this.getCredentialOfferUri(credentialConfigurationId, targetUser);
 
     if (byReference) {
       return this.buildOfferDeeplink({}, offerUrl, 'uri');
@@ -354,9 +379,33 @@ class Oid4vcService {
     );
   }
 
+  /**
+   * Lists the issued credentials of a target user (admin flow) via the token status plugin's
+   * issued-credential-status endpoint, mapping its shape onto the frontend credential model.
+   */
+  async getIssuedCredentialsFor(targetUser: string): Promise<IssuedVerifiableCredential[]> {
+    const queryString = this.buildQueryString({ target_user: targetUser });
+    const url = `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.ISSUED_CREDENTIAL_STATUS}?${queryString}`;
+
+    const response = await this.getJsonResponse<IssuedCredentialStatusResponse>(
+      url,
+      'Issued credentials lookup'
+    );
+
+    return response.credentials.map((credential) => ({
+      id: credential.credentialId,
+      issuedAt: credential.issuedAt,
+      expiresAt: credential.expiresAt ?? undefined,
+      clientId: credential.clientId,
+      revision: credential.revision,
+      revoked: credential.status === 'INVALID',
+    }));
+  }
+
   async revokeIssuedCredential(
     credentialId: string,
-    reason = 'Client app revocation'
+    reason = 'Client app revocation',
+    targetUser?: string
   ): Promise<void> {
     const headers = await this.getAuthHeaders();
     const body = new URLSearchParams({
@@ -364,6 +413,11 @@ class Oid4vcService {
       credential_id: credentialId,
       reason,
     });
+
+    // Admin revocation targets another user; self revocation keeps today's request unchanged.
+    if (targetUser && targetUser !== this.getUsername()) {
+      body.set('target_user', targetUser);
+    }
 
     const response = await fetch(
       `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.TOKEN_REVOCATION}`,

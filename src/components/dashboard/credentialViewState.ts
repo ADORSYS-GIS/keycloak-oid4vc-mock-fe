@@ -19,7 +19,9 @@ export function buildDisplayCredentials(
     .map((credential) =>
       toDisplayCredential(
         credential,
-        revokedCredentialIds.has(credential.id || '') ? 'revoked' : 'active'
+        revokedCredentialIds.has(credential.id || '') || credential.revoked === true
+          ? 'revoked'
+          : 'active'
       )
     );
 
