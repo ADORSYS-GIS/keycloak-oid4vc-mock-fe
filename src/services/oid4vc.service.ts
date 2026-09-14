@@ -29,7 +29,7 @@ interface IssuedCredentialStatusResponse {
   credentials: IssuedCredentialStatusEntry[];
 }
 
-interface IssuedCredentialStatusEntry {
+export interface IssuedCredentialStatusEntry {
   credentialId: string;
   verifiableCredentialId?: string;
   issuedAt?: number;
@@ -377,6 +377,20 @@ class Oid4vcService {
       `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.ISSUED_VERIFIABLE_CREDENTIALS}`,
       'Issued credentials lookup'
     );
+  }
+
+  /**
+   * Fetches the server-backed status of the authenticated user's issued credentials from the
+   * token status plugin. Without a target_user parameter the plugin resolves the caller from
+   * the bearer token, so this reflects revocations from every portal (self or admin).
+   */
+  async getIssuedCredentialStatus(): Promise<IssuedCredentialStatusEntry[]> {
+    const response = await this.getJsonResponse<IssuedCredentialStatusResponse>(
+      `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.ISSUED_CREDENTIAL_STATUS}`,
+      'Issued credential status lookup'
+    );
+
+    return response.credentials;
   }
 
   /**

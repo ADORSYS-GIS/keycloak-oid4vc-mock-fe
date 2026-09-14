@@ -83,6 +83,14 @@ The response is displayed in the `Credentials` tab. The UI uses the credential `
 - wallet client;
 - status.
 
+The account endpoint does not carry revocation status, so the dashboard also fetches the token status plugin's view and merges it in:
+
+```text
+GET /realms/{realm}/protocol/openid-connect/issued-credential-status
+```
+
+Without a `target_user` parameter the plugin resolves the caller from the bearer token. An entry marked `INVALID` pins the credential as `revoked` in the UI, so revocations from any portal (self or admin) are reflected everywhere. If this lookup fails, the list still renders from the account endpoint and local view state.
+
 ### Revoke Issued Credential
 
 ```text

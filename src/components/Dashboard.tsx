@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import oid4vcService from '../services/oid4vc.service';
+import oid4vcService, { type IssuedCredentialStatusEntry } from '../services/oid4vc.service';
 import { CredentialOfferView } from './dashboard/CredentialOfferView';
 import { CredentialsView } from './dashboard/CredentialsView';
 import { DashboardHeader } from './dashboard/DashboardHeader';
@@ -73,6 +73,17 @@ const Dashboard = () => {
     }
   }, [getActiveTargetUser]);
 
+  // Status hydration must not break the list itself: if the token status plugin is
+  // unreachable, the self-service list still renders with its local view state.
+  const loadServerStatuses = useCallback(async (): Promise<IssuedCredentialStatusEntry[]> => {
+    try {
+      return await oid4vcService.getIssuedCredentialStatus();
+    } catch (error) {
+      console.warn('Failed to retrieve issued credential status', error);
+      return [];
+    }
+  }, []);
+
   const loadIssuedCredentials = useCallback(async () => {
     setCredentialsLoading(true);
     setCredentialsError(null);
@@ -83,14 +94,17 @@ const Dashboard = () => {
       const issuedCredentials = targetUser
         ? await oid4vcService.getIssuedCredentialsFor(targetUser)
         : await oid4vcService.getIssuedCredentials();
-      setCredentials(buildDisplayCredentials(issuedCredentials, viewOwner));
+      // The account endpoint carries no revocation status, so the self-service list is
+      // hydrated from the token status plugin to stay in sync with admin revocations.
+      const serverStatuses = targetUser ? [] : await loadServerStatuses();
+      setCredentials(buildDisplayCredentials(issuedCredentials, viewOwner, serverStatuses));
     } catch (error) {
       console.error('Failed to retrieve issued credentials', error);
       setCredentialsError('Failed to retrieve issued credentials. Please try again.');
     } finally {
       setCredentialsLoading(false);
     }
-  }, [credentialViewOwner, getActiveTargetUser]);
+  }, [credentialViewOwner, getActiveTargetUser, loadServerStatuses]);
 
   useEffect(() => {
     prepareQr();
