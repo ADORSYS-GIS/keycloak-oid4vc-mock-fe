@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Loader2 } from 'lucide-react';
+import { AlertTriangle, Loader2 } from 'lucide-react';
 
 export function LoadingState({ label }: { label: string }) {
   return (
@@ -18,6 +18,26 @@ export function LoadingState({ label }: { label: string }) {
         aria-hidden="true"
       />
       <p style={{ margin: 0, color: 'var(--color-muted)' }}>{label}</p>
+    </div>
+  );
+}
+
+export function WarningState({ message }: { message: string }) {
+  return (
+    <div
+      role="status"
+      style={{
+        backgroundColor: '#fff3cd',
+        color: '#664d03',
+        padding: '20px',
+        borderRadius: 'var(--radius-sm)',
+        border: '1px solid #ffe69c',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+        <AlertTriangle size={20} aria-hidden="true" style={{ flexShrink: 0, marginTop: '2px' }} />
+        <p style={{ margin: 0, fontWeight: 500, lineHeight: 1.6 }}>{message}</p>
+      </div>
     </div>
   );
 }
