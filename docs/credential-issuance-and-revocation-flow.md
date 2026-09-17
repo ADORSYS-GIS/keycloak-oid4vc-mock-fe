@@ -86,7 +86,7 @@ The response is displayed in the `Credentials` tab. The UI uses the credential `
 ### Revoke Issued Credential
 
 ```text
-POST /realms/{realm}/protocol/openid-connect/revoke
+POST /realms/{realm}/status-list/revoke
 Content-Type: application/x-www-form-urlencoded
 ```
 
