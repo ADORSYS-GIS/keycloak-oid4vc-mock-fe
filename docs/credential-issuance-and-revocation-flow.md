@@ -72,7 +72,7 @@ username={preferred_username}
 ### Load Issued Credentials
 
 ```text
-GET /realms/{realm}/account/issued-verifiable-credentials
+GET /realms/{realm}/status-list/issued-credential-status
 ```
 
 The response is displayed in the `Credentials` tab. The UI uses the credential `id` as the revocation target and displays:
@@ -86,7 +86,7 @@ The response is displayed in the `Credentials` tab. The UI uses the credential `
 ### Revoke Issued Credential
 
 ```text
-POST /realms/{realm}/protocol/openid-connect/revoke
+POST /realms/{realm}/status-list/revoke
 Content-Type: application/x-www-form-urlencoded
 ```
 

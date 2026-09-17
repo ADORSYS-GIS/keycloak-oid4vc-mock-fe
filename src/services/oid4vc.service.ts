@@ -30,6 +30,18 @@ interface CredentialRevocationResponse {
   error_description?: string;
 }
 
+interface IssuedCredentialStatusResponse {
+  credentials?: Array<{
+    credentialId?: string;
+    verifiableCredentialId?: string;
+    issuedAt?: number;
+    expiresAt?: number;
+    clientId?: string;
+    revision?: string;
+    status?: string;
+  }>;
+}
+
 export const CredentialConfigurationId = {
   DATEV_COMPANY: 'DatevCompanyCredential',
 } as const;
@@ -37,6 +49,11 @@ export const CredentialConfigurationId = {
 export const DEFAULT_CREDENTIAL_CONFIGURATION_ID =
   import.meta.env.VITE_OID4VC_DEFAULT_CREDENTIAL_CONFIGURATION_ID ||
   CredentialConfigurationId.DATEV_COMPANY;
+
+export const IS_PRE_AUTHORIZED_FLOW =
+  String(import.meta.env.VITE_OID4VC_PRE_AUTHORIZED)
+    .trim()
+    .toLowerCase() === 'true';
 
 const EndpointType = {
   KEYCLOAK_26_6_0: 'keycloak_26_6_0',
@@ -51,8 +68,8 @@ class Oid4vcService {
   private static readonly ENDPOINTS = {
     CREATE_CREDENTIAL_OFFER: '/protocol/oid4vc/create-credential-offer',
     CREDENTIAL_OFFER_URI: '/protocol/oid4vc/credential-offer-uri',
-    ISSUED_VERIFIABLE_CREDENTIALS: '/account/issued-verifiable-credentials',
-    TOKEN_REVOCATION: '/protocol/openid-connect/revoke',
+    ISSUED_VERIFIABLE_CREDENTIALS: '/status-list/issued-credential-status',
+    TOKEN_REVOCATION: '/status-list/revoke',
   };
 
   private getBaseUrl(): string {
@@ -146,7 +163,7 @@ class Oid4vcService {
     const queryParams: QueryParams = {
       credential_configuration_id: credentialConfigurationId,
       target_user: this.getUsername(),
-      pre_authorized: 'true',
+      pre_authorized: IS_PRE_AUTHORIZED_FLOW ? 'true' : 'false',
     };
 
     return this.fetchCredentialOfferUri(
@@ -270,7 +287,7 @@ class Oid4vcService {
     const queryParams: QueryParams = {
       credential_configuration_id: credentialConfigurationId,
       target_user: this.getUsername(),
-      pre_authorized: 'true',
+      pre_authorized: IS_PRE_AUTHORIZED_FLOW ? 'true' : 'false',
       type: 'qr-code',
     };
 
@@ -348,10 +365,18 @@ class Oid4vcService {
   }
 
   async getIssuedCredentials(): Promise<IssuedVerifiableCredential[]> {
-    return this.getJsonResponse<IssuedVerifiableCredential[]>(
+    const response = await this.getJsonResponse<IssuedCredentialStatusResponse>(
       `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.ISSUED_VERIFIABLE_CREDENTIALS}`,
       'Issued credentials lookup'
     );
+
+    return (response.credentials || []).map((credential) => ({
+      id: credential.credentialId || '',
+      issuedAt: credential.issuedAt,
+      expiresAt: credential.expiresAt,
+      clientId: credential.clientId,
+      revision: credential.revision,
+    }));
   }
 
   async revokeIssuedCredential(
