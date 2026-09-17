@@ -72,7 +72,7 @@ username={preferred_username}
 ### Load Issued Credentials
 
 ```text
-GET /realms/{realm}/status-list/issued-credential-status
+GET /realms/{realm}/account/issued-verifiable-credentials
 ```
 
 The response is displayed in the `Credentials` tab. The UI uses the credential `id` as the revocation target and displays:

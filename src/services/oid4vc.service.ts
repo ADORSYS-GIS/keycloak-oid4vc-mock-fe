@@ -30,18 +30,6 @@ interface CredentialRevocationResponse {
   error_description?: string;
 }
 
-interface IssuedCredentialStatusResponse {
-  credentials?: Array<{
-    credentialId?: string;
-    verifiableCredentialId?: string;
-    issuedAt?: number;
-    expiresAt?: number;
-    clientId?: string;
-    revision?: string;
-    status?: string;
-  }>;
-}
-
 export const CredentialConfigurationId = {
   DATEV_COMPANY: 'DatevCompanyCredential',
 } as const;
@@ -68,7 +56,7 @@ class Oid4vcService {
   private static readonly ENDPOINTS = {
     CREATE_CREDENTIAL_OFFER: '/protocol/oid4vc/create-credential-offer',
     CREDENTIAL_OFFER_URI: '/protocol/oid4vc/credential-offer-uri',
-    ISSUED_VERIFIABLE_CREDENTIALS: '/status-list/issued-credential-status',
+    ISSUED_VERIFIABLE_CREDENTIALS: '/account/issued-verifiable-credentials',
     TOKEN_REVOCATION: '/status-list/revoke',
   };
 
@@ -365,18 +353,10 @@ class Oid4vcService {
   }
 
   async getIssuedCredentials(): Promise<IssuedVerifiableCredential[]> {
-    const response = await this.getJsonResponse<IssuedCredentialStatusResponse>(
+    return this.getJsonResponse<IssuedVerifiableCredential[]>(
       `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.ISSUED_VERIFIABLE_CREDENTIALS}`,
       'Issued credentials lookup'
     );
-
-    return (response.credentials || []).map((credential) => ({
-      id: credential.credentialId || '',
-      issuedAt: credential.issuedAt,
-      expiresAt: credential.expiresAt,
-      clientId: credential.clientId,
-      revision: credential.revision,
-    }));
   }
 
   async revokeIssuedCredential(
