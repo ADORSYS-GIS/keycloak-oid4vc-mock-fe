@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'react-qr-code';
-import { Check, Copy, ExternalLink, RefreshCw } from 'lucide-react';
+import { Check, Copy, ExternalLink, KeyRound, RefreshCw, Zap } from 'lucide-react';
 import { ErrorState, LoadingState, PrimaryButton } from './States';
+import { IS_PRE_AUTHORIZED_FLOW } from '../../services/oid4vc.service';
 
 type OfferMode = 'value' | 'reference';
 
@@ -72,6 +73,24 @@ export function CredentialOfferView({
           <p style={{ margin: 0, color: 'var(--color-muted)', lineHeight: 1.6 }}>
             Scan the QR code with your EUDI Wallet App or use the offer link to open it directly.
           </p>
+          <div
+            style={{
+              marginTop: '14px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '5px 14px',
+              borderRadius: '999px',
+              border: '1px solid var(--color-border)',
+              backgroundColor: 'var(--color-bg)',
+              fontSize: '0.8rem',
+              fontWeight: 500,
+              color: 'var(--color-muted)',
+            }}
+          >
+            {IS_PRE_AUTHORIZED_FLOW ? <Zap size={14} /> : <KeyRound size={14} />}
+            Mode: {IS_PRE_AUTHORIZED_FLOW ? 'Pre-authorized' : 'Authorization code'}
+          </div>
         </div>
 
         <div

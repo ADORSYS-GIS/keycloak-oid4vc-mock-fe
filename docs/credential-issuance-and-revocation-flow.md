@@ -94,7 +94,7 @@ Without a `target_user` parameter the plugin resolves the caller from the bearer
 ### Revoke Issued Credential
 
 ```text
-POST /realms/{realm}/protocol/openid-connect/revoke
+POST /realms/{realm}/status-list/revoke
 Content-Type: application/x-www-form-urlencoded
 ```
 

@@ -199,7 +199,6 @@ function CredentialCard({
         }}
       >
         <DetailItem label="Issued" value={formatTimestamp(credential.issuedAt)} />
-        <DetailItem label="Revision" value={credential.revision || '-'} />
         <DetailItem
           label="Wallet client"
           value={credential.clientName || credential.clientId || '-'}
@@ -271,6 +270,7 @@ function DetailItem({ label, value }: { label: string; value: ReactNode }) {
 
 function StatusBadge({ status }: { status: CredentialStatus }) {
   const isRevoked = status === 'revoked';
+  const displayLabel = isRevoked ? 'Revoked' : 'Valid';
 
   return (
     <span
@@ -296,7 +296,7 @@ function StatusBadge({ status }: { status: CredentialStatus }) {
           backgroundColor: isRevoked ? '#842029' : '#0f5132',
         }}
       />
-      {status}
+      {displayLabel}
     </span>
   );
 }
