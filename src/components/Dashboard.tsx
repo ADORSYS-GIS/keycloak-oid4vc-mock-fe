@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import oid4vcService, { type IssuedCredentialStatusEntry } from '../services/oid4vc.service';
 import { CredentialOfferView } from './dashboard/CredentialOfferView';
@@ -12,6 +12,14 @@ import {
   rememberRevokedCredential,
 } from './dashboard/credentialViewState';
 import type { DashboardTab, DisplayIssuedCredential } from './dashboard/types';
+import type { UserProfile } from '../types';
+
+// Dropdown labels read "First Last (username)"; users without a stored name fall
+// back to their bare username.
+const formatUserLabel = (user: UserProfile): string => {
+  const name = [user.firstName, user.lastName].filter(Boolean).join(' ');
+  return name ? `${name} (${user.username})` : `${user.username}`;
+};
 
 const Dashboard = () => {
   const { userProfile, logout, hasRole } = useAuth();
@@ -19,7 +27,9 @@ const Dashboard = () => {
   const isAdmin = hasRole('credential-offer-create');
   // Applied admin target ('' = current user). Only set by the admin target selector.
   const [adminTargetUser, setAdminTargetUser] = useState('');
-  const [adminTargetDraft, setAdminTargetDraft] = useState('');
+  const [realmUsers, setRealmUsers] = useState<UserProfile[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersError, setUsersError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<DashboardTab>('offer');
   const [offerDeeplink, setOfferDeeplink] = useState<string | null>(null);
   const [offerDeeplinkVal, setOfferDeeplinkVal] = useState<string | null>(null);
@@ -37,22 +47,49 @@ const Dashboard = () => {
   const [importantNotesExpanded, setImportantNotesExpanded] = useState(true);
 
   const getActiveTargetUser = useCallback((): string | undefined => {
-    const target = adminTargetUser.trim();
-    return target || undefined;
+    // applyAdminTarget trims on write, so the stored value needs no re-trim here.
+    return adminTargetUser || undefined;
   }, [adminTargetUser]);
 
   const applyAdminTarget = (target: string) => {
-    const trimmed = target.trim();
-    setAdminTargetUser(trimmed);
-    setAdminTargetDraft(trimmed);
+    setAdminTargetUser(target.trim());
   };
 
-  const handleAdminTargetSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    applyAdminTarget(adminTargetDraft);
-  };
+  // Only admins need the realm user list; it backs the target-user dropdown.
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    let cancelled = false;
+    setUsersLoading(true);
+    setUsersError(null);
+
+    oid4vcService
+      .getRealmUsers()
+      .then((users) => {
+        if (!cancelled) setRealmUsers(users);
+      })
+      .catch((error) => {
+        console.error('Failed to retrieve realm users', error);
+        if (!cancelled) {
+          setUsersError('Failed to load users. Please check your permissions and refresh.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setUsersLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin]);
+
+  // Guards against out-of-order responses when the admin target changes while a
+  // request is still in flight: only the latest request may update state.
+  const offerRequestIdRef = useRef(0);
+  const credentialsRequestIdRef = useRef(0);
 
   const prepareQr = useCallback(async () => {
+    const requestId = ++offerRequestIdRef.current;
     setIsLoading(true);
     setError(null);
 
@@ -63,13 +100,15 @@ const Dashboard = () => {
         oid4vcService.getCredentialOfferDeeplink(false, undefined, targetUser),
       ]);
 
+      if (requestId !== offerRequestIdRef.current) return; // stale: a newer request owns the offer state
       setOfferDeeplink(offerLink);
       setOfferDeeplinkVal(offerLinkVal);
     } catch (error) {
+      if (requestId !== offerRequestIdRef.current) return;
       console.error('Failed to retrieve credential offer', error);
       setError('Failed to retrieve credential offer. Please try again.');
     } finally {
-      setIsLoading(false);
+      if (requestId === offerRequestIdRef.current) setIsLoading(false);
     }
   }, [getActiveTargetUser]);
 
@@ -85,24 +124,32 @@ const Dashboard = () => {
   }, []);
 
   const loadIssuedCredentials = useCallback(async () => {
+    const requestId = ++credentialsRequestIdRef.current;
     setCredentialsLoading(true);
     setCredentialsError(null);
 
     try {
       const targetUser = getActiveTargetUser();
       const viewOwner = targetUser || credentialViewOwner;
-      const issuedCredentials = targetUser
-        ? await oid4vcService.getIssuedCredentialsFor(targetUser)
-        : await oid4vcService.getIssuedCredentials();
-      // The account endpoint carries no revocation status, so the self-service list is
-      // hydrated from the token status plugin to stay in sync with admin revocations.
-      const serverStatuses = targetUser ? [] : await loadServerStatuses();
+      // List and status lookups are independent — run them in parallel to halve the
+      // latency; loadServerStatuses never rejects (it falls back to [] itself), and
+      // the admin branch resolves its status slot to [] directly.
+      const [issuedCredentials, serverStatuses] = await Promise.all([
+        targetUser
+          ? oid4vcService.getIssuedCredentialsFor(targetUser)
+          : oid4vcService.getIssuedCredentials(),
+        targetUser ? Promise.resolve<IssuedCredentialStatusEntry[]>([]) : loadServerStatuses(),
+      ]);
+      // A slow response for a previously selected user must never replace the list of
+      // the currently selected one (mixed identities would corrupt revocation calls).
+      if (requestId !== credentialsRequestIdRef.current) return;
       setCredentials(buildDisplayCredentials(issuedCredentials, viewOwner, serverStatuses));
     } catch (error) {
+      if (requestId !== credentialsRequestIdRef.current) return;
       console.error('Failed to retrieve issued credentials', error);
       setCredentialsError('Failed to retrieve issued credentials. Please try again.');
     } finally {
-      setCredentialsLoading(false);
+      if (requestId === credentialsRequestIdRef.current) setCredentialsLoading(false);
     }
   }, [credentialViewOwner, getActiveTargetUser, loadServerStatuses]);
 
@@ -194,12 +241,11 @@ const Dashboard = () => {
         <div
           style={{
             width: '100%',
-            maxWidth: activeTab === 'credentials' ? '1000px' : '880px',
+            maxWidth: '880px',
           }}
         >
           {isAdmin && (
-            <form
-              onSubmit={handleAdminTargetSubmit}
+            <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -218,12 +264,11 @@ const Dashboard = () => {
               >
                 On behalf of user
               </label>
-              <input
+              <select
                 id="admin-target-user"
-                type="text"
-                value={adminTargetDraft}
-                onChange={(event) => setAdminTargetDraft(event.target.value)}
-                placeholder="username — leave blank for your own account"
+                value={adminTargetUser}
+                disabled={usersLoading || realmUsers.length === 0}
+                onChange={(event) => applyAdminTarget(event.target.value)}
                 style={{
                   flex: '1',
                   minWidth: '220px',
@@ -233,51 +278,33 @@ const Dashboard = () => {
                   borderRadius: 'var(--radius-sm)',
                   backgroundColor: 'var(--color-surface)',
                   color: 'var(--color-text)',
-                }}
-              />
-              <button
-                type="submit"
-                style={{
-                  backgroundColor: 'var(--color-primary)',
-                  color: '#fff',
-                  border: 'none',
-                  padding: '9px 18px',
-                  borderRadius: 'var(--radius-sm)',
-                  cursor: 'pointer',
-                  fontSize: '0.9rem',
-                  fontWeight: 600,
+                  cursor: usersLoading ? 'wait' : 'pointer',
                 }}
               >
-                Apply
-              </button>
-              {adminTargetUser && (
-                <button
-                  type="button"
-                  onClick={() => applyAdminTarget('')}
-                  style={{
-                    backgroundColor: 'transparent',
-                    color: 'var(--color-muted)',
-                    border: 'none',
-                    padding: '9px 12px',
-                    cursor: 'pointer',
-                    fontSize: '0.9rem',
-                    textDecoration: 'underline',
-                  }}
-                >
-                  Back to my account
-                </button>
+                <option value="">{userProfile ? formatUserLabel(userProfile) : 'me'}</option>
+                {/* The first option is the logged-in user themselves, so they are not
+                    rendered again as a second entry in the list. */}
+                {realmUsers
+                  .filter(
+                    (user) => user.username?.toLowerCase() !== userProfile?.username?.toLowerCase()
+                  )
+                  .map((user) => (
+                    <option key={user.id ?? user.username} value={user.username}>
+                      {formatUserLabel(user)}
+                    </option>
+                  ))}
+              </select>
+              {usersError && (
+                <span style={{ fontSize: '0.85rem', color: 'var(--color-danger)' }}>
+                  {usersError}
+                </span>
               )}
               {adminTargetUser && (
-                <span
-                  style={{
-                    fontSize: '0.85rem',
-                    color: 'var(--color-muted)',
-                  }}
-                >
+                <span style={{ fontSize: '0.85rem', color: 'var(--color-muted)' }}>
                   Managing credentials for <strong>{adminTargetUser}</strong>
                 </span>
               )}
-            </form>
+            </div>
           )}
 
           <DashboardTabs activeTab={activeTab} onTabChange={setActiveTab} />

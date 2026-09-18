@@ -1,4 +1,5 @@
 import keycloak from '../config/keycloak.config';
+import type { UserProfile } from '../types';
 
 interface CredentialOfferUriResponse {
   credential_offer_uri?: string;
@@ -81,6 +82,12 @@ class Oid4vcService {
     const keycloakUrl = import.meta.env.VITE_KEYCLOAK_URL;
     const realm = import.meta.env.VITE_KEYCLOAK_REALM;
     return `${keycloakUrl}/realms/${realm}`;
+  }
+
+  private getAdminBaseUrl(): string {
+    const keycloakUrl = import.meta.env.VITE_KEYCLOAK_URL;
+    const realm = import.meta.env.VITE_KEYCLOAK_REALM;
+    return `${keycloakUrl}/admin/realms/${realm}`;
   }
 
   private async getAuthHeaders(): Promise<HeadersInit> {
@@ -419,6 +426,27 @@ class Oid4vcService {
       revision: credential.revision,
       revoked: credential.status === 'INVALID',
     }));
+  }
+
+  /**
+   * Lists every realm user (admin flow) via the Keycloak Admin REST API. Requires the
+   * caller to hold a role granting user visibility (e.g. realm-management view-users),
+   * so it is only called for admins populating the target-user dropdown. The count
+   * endpoint sizes the list request so every realm user is returned — Keycloak would
+   * otherwise silently cap the response at its default of 100 entries.
+   */
+  async getRealmUsers(): Promise<UserProfile[]> {
+    const count = await this.getJsonResponse<number>(
+      `${this.getAdminBaseUrl()}/users/count`,
+      'Realm users count'
+    );
+
+    if (count <= 0) return [];
+
+    return this.getJsonResponse<UserProfile[]>(
+      `${this.getAdminBaseUrl()}/users?briefRepresentation=true&max=${count}`,
+      'Realm users lookup'
+    );
   }
 
   async revokeIssuedCredential(
