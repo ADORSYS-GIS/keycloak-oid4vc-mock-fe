@@ -83,6 +83,14 @@ The response is displayed in the `Credentials` tab. The UI uses the credential `
 - wallet client;
 - status.
 
+The account endpoint does not carry revocation status, so the dashboard also fetches the token status plugin's view and merges it in:
+
+```text
+GET /realms/{realm}/status-list/issued-credential-status
+```
+
+Without a `target_user` parameter the plugin resolves the caller from the bearer token. An entry marked `INVALID` pins the credential as `revoked` in the UI, so revocations from any portal (self or admin) are reflected everywhere. If this lookup fails, the list still renders from the account endpoint and local view state.
+
 ### Revoke Issued Credential
 
 ```text
@@ -114,6 +122,49 @@ The revocation action must remain server-authoritative:
 - Keycloak must find the status list mapping for the issued credential.
 - Keycloak must update the status list server.
 - The frontend only reflects the successful server response.
+
+## Admin-Initiated Flows (Admin Mode)
+
+A user holding the realm role `credential-offer-create` gets an "On behalf of user" dropdown listing all realm users loaded from Keycloak's Admin REST API; the logged-in user's own entry appears first as the default, keeping the dashboard scoped to their account. The role gate is a UI convenience only — the server must enforce the role for any request that targets another user.
+
+### Create an Offer for Another User
+
+Same calls as above, with the target parameter set to the selected username instead of the logged-in user:
+
+```text
+GET /realms/{realm}/protocol/oid4vc/create-credential-offer
+    ?credential_configuration_id={credentialType}
+    &target_user={selectedUsername}
+    &pre_authorized=true
+```
+
+with the pre-26.6 fallback `username={selectedUsername}` on `credential-offer-uri`. Keycloak rejects the request with a `403` unless the caller holds `credential-offer-create` when the target differs from the caller.
+
+### List Credentials Issued to Another User
+
+The admin list uses the token status plugin endpoint instead of the account endpoint, so it can report the real server-side status:
+
+```text
+GET /realms/{realm}/status-list/issued-credential-status?target_user={selectedUsername}
+```
+
+The response wraps entries in a `credentials` array with `credentialId`, `verifiableCredentialId`, `issuedAt`, `expiresAt`, `clientId`, `revision`, and `status` (`VALID`, `INVALID`, `SUSPENDED`, or `UNKNOWN`). The frontend maps `credentialId` to its `id` field and displays `INVALID` as revoked (non-revocable); `VALID`, `SUSPENDED`, and `UNKNOWN` stay revocable.
+
+### Revoke a Credential Issued to Another User
+
+The revocation call is the same form as the self-service one with an extra field identifying the target user (only included when targeting another user):
+
+```text
+POST /realms/{realm}/status-list/revoke
+Content-Type: application/x-www-form-urlencoded
+
+mode=issued_credential_revocation
+credential_id={issuedCredentialId}
+reason={userProvidedReason}
+target_user={selectedUsername}
+```
+
+After a successful response the frontend marks the credential `revoked` under the target user's view state, so it stays visible and auditable in the admin list.
 
 ## Presentation Status Check
 
