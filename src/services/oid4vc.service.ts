@@ -23,6 +23,22 @@ export interface IssuedVerifiableCredential {
   revision?: string;
 }
 
+interface IssuedCredentialStatusResponse {
+  credentials: IssuedCredentialStatusEntry[];
+}
+
+export interface IssuedCredentialStatusEntry {
+  credentialId: string;
+  verifiableCredentialId?: string;
+  credentialType?: string;
+  issuedAt?: number;
+  expiresAt?: number | null;
+  clientId?: string;
+  clientName?: string;
+  revision?: string;
+  status: string;
+}
+
 interface CredentialRevocationResponse {
   success?: boolean;
   message?: string;
@@ -57,6 +73,7 @@ class Oid4vcService {
     CREATE_CREDENTIAL_OFFER: '/protocol/oid4vc/create-credential-offer',
     CREDENTIAL_OFFER_URI: '/protocol/oid4vc/credential-offer-uri',
     ISSUED_VERIFIABLE_CREDENTIALS: '/account/issued-verifiable-credentials',
+    ISSUED_CREDENTIAL_STATUS: '/status-list/issued-credential-status',
     TOKEN_REVOCATION: '/status-list/revoke',
   };
 
@@ -357,6 +374,20 @@ class Oid4vcService {
       `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.ISSUED_VERIFIABLE_CREDENTIALS}`,
       'Issued credentials lookup'
     );
+  }
+
+  /**
+   * Fetches authoritative issued-credential statuses from the token status plugin.
+   * Without a target_user parameter the plugin resolves the caller from the bearer token,
+   * which is what this dashboard always wants: it has no admin flows of its own.
+   */
+  async getIssuedCredentialStatus(): Promise<IssuedCredentialStatusEntry[]> {
+    const response = await this.getJsonResponse<IssuedCredentialStatusResponse>(
+      `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.ISSUED_CREDENTIAL_STATUS}`,
+      'Issued credential status lookup'
+    );
+
+    return response.credentials;
   }
 
   async revokeIssuedCredential(

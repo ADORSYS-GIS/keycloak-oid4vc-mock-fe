@@ -1,5 +1,5 @@
 import { AlertCircle, Loader2 } from 'lucide-react';
-import type { DisplayIssuedCredential } from './types';
+import { isRevocable, type DisplayIssuedCredential } from './types';
 
 export function RevocationDialog({
   credential,
@@ -23,7 +23,7 @@ export function RevocationDialog({
   onConfirm: () => void;
 }) {
   const credentialName = credential.credentialType || 'Issued Credential';
-  const canSubmit = reason.trim().length > 0 && !isRevoking;
+  const canSubmit = reason.trim().length > 0 && !isRevoking && isRevocable(credential.status);
 
   return (
     <div

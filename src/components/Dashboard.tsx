@@ -8,14 +8,12 @@ import { DashboardTabs } from './dashboard/DashboardTabs';
 import { RevocationDialog } from './dashboard/RevocationDialog';
 import {
   buildDisplayCredentials,
-  getCredentialViewOwner,
-  rememberRevokedCredential,
+  purgeLegacyCredentialViewState,
 } from './dashboard/credentialViewState';
-import type { DashboardTab, DisplayIssuedCredential } from './dashboard/types';
+import { isRevocable, type DashboardTab, type DisplayIssuedCredential } from './dashboard/types';
 
 const Dashboard = () => {
   const { userProfile, logout } = useAuth();
-  const credentialViewOwner = getCredentialViewOwner(userProfile);
   const [activeTab, setActiveTab] = useState<DashboardTab>('offer');
   const [offerDeeplink, setOfferDeeplink] = useState<string | null>(null);
   const [offerDeeplinkVal, setOfferDeeplinkVal] = useState<string | null>(null);
@@ -31,6 +29,11 @@ const Dashboard = () => {
   const [revocationReason, setRevocationReason] = useState('');
   const [revocationReasonError, setRevocationReasonError] = useState<string | null>(null);
   const [importantNotesExpanded, setImportantNotesExpanded] = useState(true);
+
+  // Previous builds persisted revoked credentials in localStorage; purge once on mount.
+  useEffect(() => {
+    purgeLegacyCredentialViewState();
+  }, []);
 
   const prepareQr = useCallback(async () => {
     setIsLoading(true);
@@ -57,15 +60,38 @@ const Dashboard = () => {
     setCredentialsError(null);
 
     try {
-      const issuedCredentials = await oid4vcService.getIssuedCredentials();
-      setCredentials(buildDisplayCredentials(issuedCredentials, credentialViewOwner));
+      // Account endpoint = metadata; plugin endpoint = authoritative status. Merged by credential id.
+      // Fetched in parallel (neither call depends on the other), so tab load waits for the slower
+      // of the two instead of both. Failure policies differ per endpoint, hence allSettled:
+      // metadata failure is fatal (nothing to render), status failure is soft (fail-closed below).
+      const [credentialsResult, statusesResult] = await Promise.allSettled([
+        oid4vcService.getIssuedCredentials(),
+        oid4vcService.getIssuedCredentialStatus(),
+      ]);
+
+      if (credentialsResult.status === 'rejected') {
+        // Re-throw into the outer catch: without metadata there is nothing to render.
+        throw credentialsResult.reason;
+      }
+
+      // Fail closed: do not render account metadata as Valid when status is unavailable.
+      const statusLookupFailed = statusesResult.status === 'rejected';
+      if (statusLookupFailed) {
+        console.warn('Failed to retrieve issued credential status', statusesResult.reason);
+      }
+      const serverStatuses = statusLookupFailed ? [] : statusesResult.value;
+      const issuedCredentials = credentialsResult.value;
+
+      setCredentials(
+        buildDisplayCredentials(issuedCredentials, serverStatuses, { statusLookupFailed })
+      );
     } catch (error) {
       console.error('Failed to retrieve issued credentials', error);
       setCredentialsError('Failed to retrieve issued credentials. Please try again.');
     } finally {
       setCredentialsLoading(false);
     }
-  }, [credentialViewOwner]);
+  }, []);
 
   useEffect(() => {
     prepareQr();
@@ -84,6 +110,9 @@ const Dashboard = () => {
       );
       return;
     }
+    if (!isRevocable(credential.status)) {
+      return;
+    }
 
     setCredentialToRevoke(credential);
     setRevocationReason('');
@@ -91,16 +120,21 @@ const Dashboard = () => {
     setImportantNotesExpanded(true);
   };
 
-  const closeRevocationDialog = () => {
-    if (revokingCredentialId) return;
-
+  const resetRevocationDialog = () => {
     setCredentialToRevoke(null);
     setRevocationReason('');
     setRevocationReasonError(null);
   };
 
+  const closeRevocationDialog = () => {
+    // Cancel must not clear dialog state while a revoke request is in flight.
+    if (revokingCredentialId) return;
+    resetRevocationDialog();
+  };
+
   const confirmRevocation = async () => {
     if (!credentialToRevoke?.id) return;
+    if (!isRevocable(credentialToRevoke.status)) return;
 
     const reason = revocationReason.trim();
     if (!reason) {
@@ -114,7 +148,7 @@ const Dashboard = () => {
 
     try {
       await oid4vcService.revokeIssuedCredential(credentialToRevoke.id, reason);
-      rememberRevokedCredential(credentialViewOwner, credentialToRevoke);
+      // Optimistic UI: keep the row visible as Revoked without waiting for a refresh.
       setCredentials((currentCredentials) =>
         currentCredentials.map((issuedCredential) =>
           issuedCredential.id === credentialToRevoke.id
@@ -122,7 +156,7 @@ const Dashboard = () => {
             : issuedCredential
         )
       );
-      closeRevocationDialog();
+      resetRevocationDialog();
     } catch (error) {
       console.error('Failed to revoke issued credential', error);
       setCredentialsError('Failed to revoke issued credential. Please try again.');
