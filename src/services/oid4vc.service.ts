@@ -22,8 +22,18 @@ export interface IssuedVerifiableCredential {
   clientName?: string;
   clientBaseUrl?: string;
   revision?: string;
-  /** Server-reported revoked state (INVALID status). Absent for self-service account lookups. */
+  /**
+   * Convenience flag: true only when plugin status is INVALID.
+   * Do not use this alone for UI badges — UNKNOWN/SUSPENDED also map to revoked:false
+   * but must not look Valid. Prefer `serverStatus` (or the dashboard `status` field).
+   */
   revoked?: boolean;
+  /**
+   * Authoritative plugin status when this row came from
+   * `/status-list/issued-credential-status` (`VALID` / `INVALID` / `SUSPENDED` / `UNKNOWN`).
+   * The dashboard maps this to the badge and only enables Revoke for VALID.
+   */
+  serverStatus?: string;
 }
 
 interface IssuedCredentialStatusResponse {
@@ -33,9 +43,13 @@ interface IssuedCredentialStatusResponse {
 export interface IssuedCredentialStatusEntry {
   credentialId: string;
   verifiableCredentialId?: string;
+  /** Credential configuration/type (client-scope name), same value as the account endpoint. */
+  credentialType?: string;
   issuedAt?: number;
   expiresAt?: number | null;
   clientId?: string;
+  /** Display name of the requesting client, falling back to its public client id. */
+  clientName?: string;
   revision?: string;
   status: string;
 }
@@ -392,13 +406,15 @@ class Oid4vcService {
   }
 
   /**
-   * Fetches the server-backed status of the authenticated user's issued credentials from the
-   * token status plugin. Without a target_user parameter the plugin resolves the caller from
-   * the bearer token, so this reflects revocations from every portal (self or admin).
+   * Fetches issued-credential statuses from `/status-list/issued-credential-status`.
+   * - No argument: statuses for the authenticated bearer (self-service merge with account metadata).
+   * - With `targetUser`: statuses for that holder (admin list).
    */
-  async getIssuedCredentialStatus(): Promise<IssuedCredentialStatusEntry[]> {
+  async getIssuedCredentialStatus(targetUser?: string): Promise<IssuedCredentialStatusEntry[]> {
+    const queryString = this.buildQueryString({ target_user: targetUser });
+    const suffix = queryString ? `?${queryString}` : '';
     const response = await this.getJsonResponse<IssuedCredentialStatusResponse>(
-      `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.ISSUED_CREDENTIAL_STATUS}`,
+      `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.ISSUED_CREDENTIAL_STATUS}${suffix}`,
       'Issued credential status lookup'
     );
 
@@ -406,34 +422,42 @@ class Oid4vcService {
   }
 
   /**
-   * Lists the issued credentials of a target user (admin flow) via the token status plugin's
-   * issued-credential-status endpoint, mapping its shape onto the frontend credential model.
+   * Admin credential list for another user.
+   * Calls the same plugin endpoint as {@link getIssuedCredentialStatus}, then maps each
+   * entry onto the dashboard credential shape.
+   *
+   * Important: the plugin `status` is kept as `serverStatus`. Collapsing it to a boolean
+   * `revoked` would make UNKNOWN and SUSPENDED look Valid in the UI, and revoke would
+   * then 404 when no status-list mapping exists.
    */
   async getIssuedCredentialsFor(targetUser: string): Promise<IssuedVerifiableCredential[]> {
-    const queryString = this.buildQueryString({ target_user: targetUser });
-    const url = `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.ISSUED_CREDENTIAL_STATUS}?${queryString}`;
+    const entries = await this.getIssuedCredentialStatus(targetUser);
 
-    const response = await this.getJsonResponse<IssuedCredentialStatusResponse>(
-      url,
-      'Issued credentials lookup'
-    );
-
-    return response.credentials.map((credential) => ({
+    return entries.map((credential) => ({
       id: credential.credentialId,
+      credentialType: credential.credentialType,
       issuedAt: credential.issuedAt,
       expiresAt: credential.expiresAt ?? undefined,
       clientId: credential.clientId,
+      clientName: credential.clientName,
       revision: credential.revision,
+      serverStatus: credential.status,
       revoked: credential.status === 'INVALID',
     }));
   }
 
   /**
-   * Lists every realm user (admin flow) via the Keycloak Admin REST API. Requires the
-   * caller to hold a role granting user visibility (e.g. realm-management view-users),
-   * so it is only called for admins populating the target-user dropdown. The count
-   * endpoint sizes the list request so every realm user is returned — Keycloak would
-   * otherwise silently cap the response at its default of 100 entries.
+   * Lists every realm user (admin flow) via the Keycloak Admin REST API.
+   *
+   * Permission model: `credential-offer-create` is enough to *act* on another user
+   * (offer / list / revoke), but it is **not** enough to enumerate realm users.
+   * The caller must also hold a realm-management role that grants user visibility
+   * (`view-users` or `query-users`). A token with only `credential-offer-create`
+   * receives 403 from `/users/count` and this method rejects; the dashboard then
+   * disables the target dropdown rather than inventing a user list.
+   *
+   * The count endpoint sizes the list request so every realm user is returned —
+   * Keycloak would otherwise silently cap the response at its default of 100 entries.
    */
   async getRealmUsers(): Promise<UserProfile[]> {
     const count = await this.getJsonResponse<number>(
@@ -451,20 +475,17 @@ class Oid4vcService {
 
   async revokeIssuedCredential(
     credentialId: string,
-    reason = 'Client app revocation',
-    targetUser?: string
+    reason = 'Client app revocation'
   ): Promise<void> {
     const headers = await this.getAuthHeaders();
+    // Backend (token-status-link) authorizes admin revoke from the bearer role + credential_id.
+    // It does not read target_user. Sending that field would only mislead docs/tests into
+    // thinking the client scopes the revoke — so the body matches self-service revoke.
     const body = new URLSearchParams({
       mode: 'issued_credential_revocation',
       credential_id: credentialId,
       reason,
     });
-
-    // Admin revocation targets another user; self revocation keeps today's request unchanged.
-    if (targetUser && targetUser !== this.getUsername()) {
-      body.set('target_user', targetUser);
-    }
 
     const response = await fetch(
       `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.TOKEN_REVOCATION}`,

@@ -46,6 +46,7 @@ const chidiCredential: IssuedVerifiableCredential = {
   id: 'chidi-cred-1',
   credentialType: 'IdentityCredential',
   issuedAt: 1788700000,
+  serverStatus: 'VALID',
   revoked: false,
 };
 
@@ -58,6 +59,7 @@ const otherUsers = [
 
 beforeEach(() => {
   vi.clearAllMocks();
+  window.localStorage.clear();
   getCredentialOfferDeeplink.mockResolvedValue('openid-credential-offer://offer');
   getRealmUsers.mockResolvedValue(otherUsers);
   getIssuedCredentials.mockResolvedValue([]);
@@ -77,6 +79,16 @@ describe('admin versus holder access', () => {
     renderDashboard(true);
 
     expect(await screen.findByLabelText('On behalf of user')).toBeInTheDocument();
+  });
+
+  it('fail-closes user loading when the token has credential-offer-create but not view-users', async () => {
+    getRealmUsers.mockRejectedValue(new Error('Realm users count failed: Forbidden'));
+    renderDashboard(true);
+
+    expect(
+      await screen.findByText('Failed to load users. Please check your permissions and refresh.')
+    ).toBeInTheDocument();
+    expect(await screen.findByLabelText('On behalf of user')).toBeDisabled();
   });
 
   it('does not render the admin selector for users without the role', async () => {
@@ -104,28 +116,84 @@ describe('admin versus holder access', () => {
   });
 });
 
-describe('admin target-user propagation', () => {
-  it('loads and revokes credentials for the selected target user', async () => {
+describe('admin listing and revocation', () => {
+  it('lists another user’s VALID credential then revokes it by id only', async () => {
     getIssuedCredentialsFor.mockResolvedValue([chidiCredential]);
     renderDashboard(true);
 
     const user = userEvent.setup();
     await user.selectOptions(await findEnabledTargetSelector(), 'chidi');
-
     await user.click(screen.getByRole('button', { name: 'Credentials' }));
-    await waitFor(() => {
-      expect(getIssuedCredentialsFor).toHaveBeenCalledWith('chidi');
-    });
+
     expect(await screen.findByText('chidi-cred-1')).toBeInTheDocument();
+    expect(screen.getByText('Valid')).toBeInTheDocument();
+    expect(getIssuedCredentialsFor).toHaveBeenCalledWith('chidi');
+    expect(getIssuedCredentialsFor).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole('button', { name: 'Revoke' }));
     const dialog = within(await screen.findByRole('dialog'));
     await user.type(dialog.getByLabelText(/Reason for revocation/), 'compromised');
     await user.click(dialog.getByRole('button', { name: 'Revoke' }));
 
-    await waitFor(() => {
-      expect(revokeIssuedCredential).toHaveBeenCalledWith('chidi-cred-1', 'compromised', 'chidi');
-    });
+    expect(await screen.findByText('Revoked')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByText('chidi-cred-1')).toBeInTheDocument();
+    expect(revokeIssuedCredential).toHaveBeenCalledTimes(1);
+    expect(revokeIssuedCredential).toHaveBeenCalledWith('chidi-cred-1', 'compromised');
+  });
+
+  it('shows an error when the admin credential list request fails', async () => {
+    getIssuedCredentialsFor.mockRejectedValue(new Error('plugin down'));
+    renderDashboard(true);
+
+    const user = userEvent.setup();
+    await user.selectOptions(await findEnabledTargetSelector(), 'chidi');
+    await user.click(screen.getByRole('button', { name: 'Credentials' }));
+
+    expect(
+      await screen.findByText('Failed to retrieve issued credentials. Please try again.')
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Valid')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Revoke' })).not.toBeInTheDocument();
+  });
+});
+
+describe('credential list rendering from server responses', () => {
+  it('fail-closes to Unknown and disables revoke when the plugin status lookup fails', async () => {
+    getIssuedCredentials.mockResolvedValue([
+      { id: 'own-cred-1', credentialType: 'IdentityCredential' },
+    ]);
+    getIssuedCredentialStatus.mockRejectedValue(new Error('plugin down'));
+
+    renderDashboard(false);
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Credentials' }));
+
+    expect(await screen.findByText('own-cred-1')).toBeInTheDocument();
+    expect(screen.getByText('Unknown')).toBeInTheDocument();
+    expect(screen.queryByText('Valid')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Revoke' })).toBeDisabled();
+  });
+
+  it('shows UNKNOWN and SUSPENDED distinctly and keeps revoke disabled', async () => {
+    getIssuedCredentials.mockResolvedValue([
+      { id: 'unknown-1', credentialType: 'IdentityCredential' },
+      { id: 'suspended-1', credentialType: 'IdentityCredential' },
+    ]);
+    getIssuedCredentialStatus.mockResolvedValue([
+      { credentialId: 'unknown-1', status: 'UNKNOWN' },
+      { credentialId: 'suspended-1', status: 'SUSPENDED' },
+    ]);
+
+    renderDashboard(false);
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Credentials' }));
+
+    expect(await screen.findByText('unknown-1')).toBeInTheDocument();
+    expect(screen.getByText('Unknown')).toBeInTheDocument();
+    expect(screen.getByText('Suspended')).toBeInTheDocument();
+    const revokeButtons = screen.getAllByRole('button', { name: 'Revoke' });
+    expect(revokeButtons).toHaveLength(2);
+    expect(revokeButtons[0]).toBeDisabled();
+    expect(revokeButtons[1]).toBeDisabled();
   });
 });
 
