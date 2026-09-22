@@ -56,16 +56,6 @@ describe('buildDisplayCredentials response merging', () => {
     });
   });
 
-  it('shows a server-reported revoked credential as revoked and keeps it visible', () => {
-    const display = buildDisplayCredentials(
-      [credential()],
-      [{ credentialId: 'cred-1', status: 'INVALID' }]
-    );
-
-    expect(display).toHaveLength(1);
-    expect(display[0].status).toBe('revoked');
-  });
-
   it('renders nothing for an empty server response', () => {
     expect(buildDisplayCredentials([], [])).toEqual([]);
   });

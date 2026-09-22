@@ -36,7 +36,7 @@ export function CredentialsView({
         </div>
       )}
 
-      {!credentialsLoading && credentialsError && (
+      {!credentialsLoading && credentialsError && credentials.length === 0 && (
         <div
           style={{
             backgroundColor: 'var(--color-surface)',
@@ -54,8 +54,13 @@ export function CredentialsView({
         <EmptyCredentialsState />
       )}
 
-      {!credentialsLoading && !credentialsError && credentials.length > 0 && (
+      {!credentialsLoading && credentials.length > 0 && (
         <>
+          {credentialsError && (
+            <div style={{ marginBottom: '16px' }}>
+              <ErrorState message={credentialsError} actionLabel="Refresh" onAction={onRefresh} />
+            </div>
+          )}
           <div
             style={{
               display: 'flex',

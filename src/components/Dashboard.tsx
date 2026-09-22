@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import oid4vcService from '../services/oid4vc.service';
 import { CredentialOfferView } from './dashboard/CredentialOfferView';
@@ -29,6 +29,7 @@ const Dashboard = () => {
   const [revocationReason, setRevocationReason] = useState('');
   const [revocationReasonError, setRevocationReasonError] = useState<string | null>(null);
   const [importantNotesExpanded, setImportantNotesExpanded] = useState(true);
+  const credentialsRequestId = useRef(0);
 
   // Previous builds persisted revoked credentials in localStorage; purge once on mount.
   useEffect(() => {
@@ -56,18 +57,21 @@ const Dashboard = () => {
   }, []);
 
   const loadIssuedCredentials = useCallback(async () => {
+    // Each load gets an id. Only the latest id may update the list, the error, or the loading flag.
+    const requestId = ++credentialsRequestId.current;
     setCredentialsLoading(true);
     setCredentialsError(null);
 
     try {
-      // Account endpoint = metadata; plugin endpoint = authoritative status. Merged by credential id.
-      // Fetched in parallel (neither call depends on the other), so tab load waits for the slower
-      // of the two instead of both. Failure policies differ per endpoint, hence allSettled:
-      // metadata failure is fatal (nothing to render), status failure is soft (fail-closed below).
+      // The account call supplies the rows. The status call supplies each badge. They are merged by credential id.
+      // Both run together. allSettled is used because a failed account call hides the list,
+      // while a failed status call still shows the rows as Unknown.
       const [credentialsResult, statusesResult] = await Promise.allSettled([
         oid4vcService.getIssuedCredentials(),
         oid4vcService.getIssuedCredentialStatus(),
       ]);
+
+      if (requestId !== credentialsRequestId.current) return;
 
       if (credentialsResult.status === 'rejected') {
         // Re-throw into the outer catch: without metadata there is nothing to render.
@@ -86,10 +90,13 @@ const Dashboard = () => {
         buildDisplayCredentials(issuedCredentials, serverStatuses, { statusLookupFailed })
       );
     } catch (error) {
+      if (requestId !== credentialsRequestId.current) return;
       console.error('Failed to retrieve issued credentials', error);
       setCredentialsError('Failed to retrieve issued credentials. Please try again.');
     } finally {
-      setCredentialsLoading(false);
+      if (requestId === credentialsRequestId.current) {
+        setCredentialsLoading(false);
+      }
     }
   }, []);
 

@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Dashboard from '../components/Dashboard';
@@ -111,6 +111,92 @@ describe('server-authoritative credential list', () => {
     expect(screen.getByText('own-cred-1')).toBeInTheDocument();
     expect(revokeIssuedCredential).toHaveBeenCalledWith('own-cred-1', 'compromised');
     expect(window.localStorage.length).toBe(0);
+  });
+
+  it('does not send a revocation when the reason is only whitespace', async () => {
+    getIssuedCredentials.mockResolvedValue([
+      { id: 'own-cred-1', credentialType: 'IdentityCredential', issuedAt: 1788700000 },
+    ]);
+    getIssuedCredentialStatus.mockResolvedValue([{ credentialId: 'own-cred-1', status: 'VALID' }]);
+    const user = userEvent.setup();
+
+    renderDashboard();
+    await user.click(await screen.findByRole('button', { name: 'Credentials' }));
+    await screen.findByText('own-cred-1');
+
+    await user.click(screen.getByRole('button', { name: 'Revoke' }));
+    const dialog = within(await screen.findByRole('dialog'));
+    await user.type(dialog.getByLabelText(/Reason for revocation/), '   ');
+
+    expect(dialog.getByRole('button', { name: 'Revoke' })).toBeDisabled();
+    expect(revokeIssuedCredential).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('Valid')).toBeInTheDocument();
+  });
+
+  it('keeps the credential active and the dialog open when revocation fails', async () => {
+    getIssuedCredentials.mockResolvedValue([
+      { id: 'own-cred-1', credentialType: 'IdentityCredential', issuedAt: 1788700000 },
+    ]);
+    getIssuedCredentialStatus.mockResolvedValue([{ credentialId: 'own-cred-1', status: 'VALID' }]);
+    revokeIssuedCredential.mockRejectedValue(new Error('revoke rejected'));
+    const user = userEvent.setup();
+
+    renderDashboard();
+    await user.click(await screen.findByRole('button', { name: 'Credentials' }));
+    await screen.findByText('own-cred-1');
+
+    await user.click(screen.getByRole('button', { name: 'Revoke' }));
+    const dialog = within(await screen.findByRole('dialog'));
+    await user.type(dialog.getByLabelText(/Reason for revocation/), 'compromised');
+    await user.click(dialog.getByRole('button', { name: 'Revoke' }));
+
+    expect(
+      await screen.findByText('Failed to revoke issued credential. Please try again.')
+    ).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('Valid')).toBeInTheDocument();
+    expect(screen.queryByText('Revoked')).not.toBeInTheDocument();
+    expect(screen.getByText('own-cred-1')).toBeInTheDocument();
+  });
+
+  it('ignores a stale credential response when a newer load finishes first', async () => {
+    let releaseFirstCredentials: (value: unknown) => void = () => {};
+    let releaseFirstStatus: (value: unknown) => void = () => {};
+    const firstCredentials = new Promise((resolve) => {
+      releaseFirstCredentials = resolve;
+    });
+    const firstStatus = new Promise((resolve) => {
+      releaseFirstStatus = resolve;
+    });
+
+    getIssuedCredentials.mockResolvedValue([
+      { id: 'cred-new', credentialType: 'IdentityCredential' },
+    ]);
+    getIssuedCredentialStatus.mockResolvedValue([{ credentialId: 'cred-new', status: 'VALID' }]);
+    getIssuedCredentials.mockImplementationOnce(() => firstCredentials);
+    getIssuedCredentialStatus.mockImplementationOnce(() => firstStatus);
+
+    const user = userEvent.setup();
+    renderDashboard();
+    await user.click(await screen.findByRole('button', { name: 'Credentials' }));
+    expect(await screen.findByText('Loading issued credentials...')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Credential Offer' }));
+    await user.click(screen.getByRole('button', { name: 'Credentials' }));
+
+    expect(await screen.findByText('cred-new')).toBeInTheDocument();
+    expect(screen.getByText('Valid')).toBeInTheDocument();
+
+    await act(async () => {
+      releaseFirstCredentials([{ id: 'cred-old', credentialType: 'IdentityCredential' }]);
+      releaseFirstStatus([{ credentialId: 'cred-old', status: 'INVALID' }]);
+    });
+
+    await waitFor(() => expect(getIssuedCredentials).toHaveBeenCalledTimes(2));
+    expect(screen.getByText('cred-new')).toBeInTheDocument();
+    expect(screen.queryByText('cred-old')).not.toBeInTheDocument();
+    expect(screen.queryByText('Revoked')).not.toBeInTheDocument();
   });
 
   it('reflects a revocation performed in another client after refreshing the list', async () => {
