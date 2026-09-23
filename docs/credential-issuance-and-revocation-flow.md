@@ -97,7 +97,7 @@ GET /realms/{realm}/status-list/issued-credential-status
 | `UNKNOWN` (no status-list mapping) | Unknown   | disabled |
 | lookup failed                      | Unknown   | disabled |
 
-Only credentials returned by the account endpoint are rendered. Credentials missing from that response are not shown. No credential status is stored in `localStorage`; a one-time purge removes any legacy browser state from previous builds. After a successful revoke the UI marks the row `revoked` immediately; a refresh reloads the authoritative plugin status (including revokes performed in another client).
+Only credentials returned by the account endpoint are rendered. Credentials missing from that response are not shown. No credential status is stored in `localStorage`; a one-time purge removes any legacy browser state from previous builds. After a successful revoke the UI marks the row `revoked` immediately and reloads the authoritative plugin status (including revokes performed in another client); superseded loads are aborted so a stale response can never overwrite newer data.
 
 ### Revoke Issued Credential
 

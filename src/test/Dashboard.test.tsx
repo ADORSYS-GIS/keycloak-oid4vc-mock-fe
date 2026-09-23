@@ -96,6 +96,14 @@ describe('server-authoritative credential list', () => {
       { id: 'own-cred-1', credentialType: 'IdentityCredential', issuedAt: 1788700000 },
     ]);
     getIssuedCredentialStatus.mockResolvedValue([{ credentialId: 'own-cred-1', status: 'VALID' }]);
+    // The plugin answers INVALID after a successful revoke. INVALID is the server's
+    // word for revoked: the UI shows it as the "Revoked" badge. The reload that follows
+    // the revoke reads this value instead of the stale VALID one.
+    revokeIssuedCredential.mockImplementation(async () => {
+      getIssuedCredentialStatus.mockResolvedValue([
+        { credentialId: 'own-cred-1', status: 'INVALID' },
+      ]);
+    });
     const user = userEvent.setup();
 
     renderDashboard();
@@ -110,7 +118,42 @@ describe('server-authoritative credential list', () => {
     expect(await screen.findByText('Revoked')).toBeInTheDocument();
     expect(screen.getByText('own-cred-1')).toBeInTheDocument();
     expect(revokeIssuedCredential).toHaveBeenCalledWith('own-cred-1', 'compromised');
+    // After revoking, the dashboard reloads the list. Count those reloads and check the
+    // credential is still shown as Revoked once the reload finishes.
+    await waitFor(() => expect(getIssuedCredentials).toHaveBeenCalledTimes(2));
+    expect(screen.getByText('Revoked')).toBeInTheDocument();
     expect(window.localStorage.length).toBe(0);
+  });
+
+  it('aborts the in-flight requests of a load that gets superseded', async () => {
+    // Switching tabs starts a second load, which must cancel the first one. Record the
+    // cancellation signals both loads hand to the service so we can check this.
+    const observedSignals: AbortSignal[] = [];
+    getIssuedCredentials.mockImplementation((signal?: AbortSignal) => {
+      observedSignals.push(signal as AbortSignal);
+      return new Promise(() => {}); // stay in flight until aborted
+    });
+    getIssuedCredentialStatus.mockImplementation((signal?: AbortSignal) => {
+      observedSignals.push(signal as AbortSignal);
+      return new Promise(() => {});
+    });
+    const user = userEvent.setup();
+
+    renderDashboard();
+    await user.click(await screen.findByRole('button', { name: 'Credentials' }));
+    await screen.findByText('Loading issued credentials...');
+
+    // Starting a new load must abort the first one so its responses can never land.
+    await user.click(screen.getByRole('button', { name: 'Credential Offer' }));
+    await user.click(screen.getByRole('button', { name: 'Credentials' }));
+
+    // Expect two loads, each sending one shared signal to both endpoints. Load one's
+    // signal must be cancelled (aborted) once load two starts; load two's stays active.
+    expect(observedSignals).toHaveLength(4);
+    expect(observedSignals[0]).toBe(observedSignals[1]);
+    expect(observedSignals[2]).toBe(observedSignals[3]);
+    expect(observedSignals[0].aborted).toBe(true);
+    expect(observedSignals[2].aborted).toBe(false);
   });
 
   it('does not send a revocation when the reason is only whitespace', async () => {

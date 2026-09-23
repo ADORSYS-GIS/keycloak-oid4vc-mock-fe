@@ -93,9 +93,12 @@ class Oid4vcService {
     };
   }
 
-  private async getJsonResponse<T>(url: string, context: string): Promise<T> {
+  private async getJsonResponse<T>(url: string, context: string, signal?: AbortSignal): Promise<T> {
     const headers = await this.getAuthHeaders();
-    const response = await fetch(url, { headers });
+    // An optional signal that cancels the request while it is still running. The
+    // dashboard passes one when it starts a newer credential load, so an older load's
+    // requests stop instead of finishing and being thrown away unused.
+    const response = await fetch(url, { headers, signal });
 
     if (!response.ok) {
       throw new Error(`${context} failed: ${await this.getResponseError(response)}`);
@@ -369,10 +372,11 @@ class Oid4vcService {
     return this.buildOfferDeeplink(offer, offerUrl, 'json');
   }
 
-  async getIssuedCredentials(): Promise<IssuedVerifiableCredential[]> {
+  async getIssuedCredentials(signal?: AbortSignal): Promise<IssuedVerifiableCredential[]> {
     return this.getJsonResponse<IssuedVerifiableCredential[]>(
       `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.ISSUED_VERIFIABLE_CREDENTIALS}`,
-      'Issued credentials lookup'
+      'Issued credentials lookup',
+      signal
     );
   }
 
@@ -381,10 +385,11 @@ class Oid4vcService {
    * Without a target_user parameter the plugin resolves the caller from the bearer token,
    * which is what this dashboard always wants: it has no admin flows of its own.
    */
-  async getIssuedCredentialStatus(): Promise<IssuedCredentialStatusEntry[]> {
+  async getIssuedCredentialStatus(signal?: AbortSignal): Promise<IssuedCredentialStatusEntry[]> {
     const response = await this.getJsonResponse<IssuedCredentialStatusResponse>(
       `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.ISSUED_CREDENTIAL_STATUS}`,
-      'Issued credential status lookup'
+      'Issued credential status lookup',
+      signal
     );
 
     return response.credentials;

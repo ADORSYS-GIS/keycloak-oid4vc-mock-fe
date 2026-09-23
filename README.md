@@ -20,7 +20,7 @@ These instructions will get you a copy of the project up and running on your loc
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (v18 or higher recommended)
+- [Node.js](https://nodejs.org/) (v22 or higher; required by the test toolchain)
 - [npm](https://yarnpkg.com/) package manager
 - A running Keycloak instance with a configured realm and client.
 
