@@ -204,11 +204,12 @@ The verifier fetches the status list token, validates its signature and certific
 10. Confirm the credential remains visible with status `revoked`.
 11. Try presenting the revoked credential and confirm status validation rejects it.
 
-Admin path (caller has `credential-offer-create` **and** `view-users`):
+## Testing the Admin Path
 
-12. Open the "On behalf of user" dropdown and select another realm user.
-13. Create an offer for that user and confirm the QR targets them.
-14. Open `Credentials` and confirm their issued credentials list with correct plugin statuses.
-15. Revoke a `Valid` credential by id only (no `target_user` in the request).
-16. Confirm `Unknown` / `Suspended` items cannot be revoked.
-17. Log in as a user with only `credential-offer-create` (no `view-users`) and confirm the dropdown is disabled with a permission error.
+1. Log in as a user who has both `credential-offer-create` and `view-users`.
+2. Open the "On behalf of user" dropdown and select another realm user.
+3. Create an offer for that user and confirm the QR targets them.
+4. Open `Credentials` and confirm their issued credentials list with correct plugin statuses.
+5. Revoke a `Valid` credential by id only (no `target_user` in the request).
+6. Confirm `Unknown` / `Suspended` items cannot be revoked.
+7. Log in as a user with only `credential-offer-create` (no `view-users`) and confirm the dropdown is disabled with a permission error.
