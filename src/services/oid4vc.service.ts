@@ -69,7 +69,7 @@ class Oid4vcService {
     CREATE_CREDENTIAL_OFFER: '/protocol/oid4vc/create-credential-offer',
     CREDENTIAL_OFFER_URI: '/protocol/oid4vc/credential-offer-uri',
     ISSUED_VERIFIABLE_CREDENTIALS: '/account/issued-verifiable-credentials',
-    ISSUED_CREDENTIAL_STATUS: '/protocol/openid-connect/issued-credential-status',
+    ISSUED_CREDENTIAL_STATUS: '/status-list/issued-credential-status',
     TOKEN_REVOCATION: '/status-list/revoke',
   };
 

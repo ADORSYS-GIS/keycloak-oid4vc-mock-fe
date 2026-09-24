@@ -87,7 +87,7 @@ The response is displayed in the `Credentials` tab. The UI uses the credential `
 ### Load Issuance Limits
 
 ```text
-GET /realms/{realm}/protocol/openid-connect/issued-credential-status
+GET /realms/{realm}/status-list/issued-credential-status
 Accept: application/json
 ```
 
@@ -148,7 +148,7 @@ The token-status-list plugin can cap how many non-revoked credentials a holder m
 
 The client is not responsible for configuring or enforcing the limit. It only warns:
 
-- On mount, the dashboard loads issued-credential status from `GET .../protocol/openid-connect/issued-credential-status` and reads the optional `limits` array.
+- On mount, the dashboard loads issued-credential status from `GET .../status-list/issued-credential-status` and reads the optional `limits` array.
 - On the `Credential Offer` tab, when the entry for `VITE_OID4VC_DEFAULT_CREDENTIAL_CONFIGURATION_ID` has `remaining: 0`, an advisory warning is shown above the QR code.
 - The QR code stays visible and scannable; the warning is advisory. The plugin still rejects actual issuance.
 - After a successful revocation, the client reloads `limits` so the warning clears.
