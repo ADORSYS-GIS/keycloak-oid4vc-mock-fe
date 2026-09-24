@@ -87,9 +87,22 @@ const Dashboard = () => {
     prepareQr();
   }, [prepareQr]);
 
+  // Keep the limit warning in sync while this tab is open. The status
+  // endpoint is the only signal that the cap has been reached.
   useEffect(() => {
-    loadCredentialLimits();
-  }, [loadCredentialLimits]);
+    if (activeTab !== 'offer') return;
+
+    const refreshLimits = () => {
+      void loadCredentialLimits();
+    };
+
+    refreshLimits();
+    const intervalId = window.setInterval(refreshLimits, 5000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [activeTab, loadCredentialLimits]);
 
   useEffect(() => {
     if (activeTab === 'credentials') {

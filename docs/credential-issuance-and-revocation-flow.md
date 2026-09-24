@@ -148,10 +148,11 @@ The token-status-list plugin can cap how many non-revoked credentials a holder m
 
 The client is not responsible for configuring or enforcing the limit. It only warns:
 
-- On mount, the dashboard loads issued-credential status from `GET .../status-list/issued-credential-status` and reads the optional `limits` array.
+- While the `Credential Offer` tab is open, the dashboard polls `GET .../status-list/issued-credential-status` every few seconds and reads the optional `limits` array. The warning appears as soon as the cap is reached, without a page reload.
 - On the `Credential Offer` tab, when the entry for `VITE_OID4VC_DEFAULT_CREDENTIAL_CONFIGURATION_ID` has `remaining: 0`, an advisory warning is shown above the QR code.
-- The QR code stays visible and scannable; the warning is advisory. The plugin still rejects actual issuance.
-- After a successful revocation, the client reloads `limits` so the warning clears.
+- The warning names the overflow policy in force. `REJECT` means issuing another credential will fail. `REVOKE_OLDEST` means issuing another credential will automatically revoke the oldest valid credential of that type ([eudiw-app#863](https://github.com/adorsys/eudiw-app/issues/863)).
+- The QR code stays visible and scannable. The warning is advisory; enforcement stays on the plugin.
+- After a successful revocation, the client reloads `limits` so the warning clears when a slot is free.
 - If the `limits` payload is missing, empty, or the endpoint fails, no warning is shown and all existing flows continue unchanged.
 
 ## Presentation Status Check
@@ -182,7 +183,13 @@ The verifier fetches the status list token, validates its signature and certific
 9. Submit the revocation.
 10. Confirm the credential remains visible with status `revoked`.
 11. Try presenting the revoked credential and confirm status validation rejects it.
-12. Set `Max credentials per user` on the credential mapper in the Keycloak Admin Console and reach the cap.
-13. Confirm the warning appears on the `Credential Offer` tab before scanning again.
-14. Confirm a user below the cap sees no warning.
-15. Revoke one credential and confirm the warning clears after the limits refresh.
+
+## Testing the Issuance Limit Warning
+
+1. Log in to the Keycloak Admin Console.
+2. Open the credential mapper for `VITE_OID4VC_DEFAULT_CREDENTIAL_CONFIGURATION_ID` and set `Max credentials per user` to a small positive number.
+3. Log in to the client app as a holder who still has fewer non-revoked credentials of that type than the cap.
+4. Open the `Credential Offer` tab and confirm no issuance-limit warning is shown.
+5. Issue credentials of that type until the holder reaches the cap.
+6. Confirm the warning appears above the QR code, and the QR code stays visible and scannable.
+7. Revoke one credential of that type and confirm the warning clears.

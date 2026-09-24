@@ -72,6 +72,26 @@ export function getCredentialLimitWarning(
   return limit.remaining <= 0 ? limit : null;
 }
 
+/**
+ * Warning copy for a quota that is already exhausted.
+ * `REJECT` fails the next issuance. `REVOKE_OLDEST` revokes the oldest valid
+ * credential of this type and then continues issuance.
+ */
+export function formatIssuanceLimitWarning(limit: IssuedCredentialLimit): string {
+  const reached = `You have reached the issuance limit for this credential type (${limit.activeCount} of ${limit.max} issued).`;
+  const policy = limit.overflowPolicy?.trim().toUpperCase();
+
+  if (policy === 'REJECT') {
+    return `${reached} Issuing another credential will fail. Revoking a credential frees a slot and clears this warning.`;
+  }
+
+  if (policy === 'REVOKE_OLDEST') {
+    return `${reached} Issuing another credential will automatically revoke the oldest valid credential.`;
+  }
+
+  return `${reached} Overflow policy in force: ${limit.overflowPolicy}.`;
+}
+
 function toDisplayCredential(
   credential: IssuedVerifiableCredential,
   status: CredentialStatus
