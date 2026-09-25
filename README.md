@@ -14,6 +14,12 @@ This project is a React application that demonstrates how to integrate Keycloak 
 
 - [Credential issuance and revocation flow](docs/credential-issuance-and-revocation-flow.md)
 
+## Architecture
+
+The first login is username and password on the Keycloak page. This app then shows the Credential Portal, where the user scans an offer QR and the wallet receives a credential. That credential is listed in the client. After logout, **Sign in with a wallet** shows a presentation QR. Scanning the credential that is still valid logs the user back into the Credential Portal. Revoke on the Credentials tab is separate: if that credential was revoked, the same scan is rejected. The wallet QR and the status check belong to the OID4VP plugin, not to this app.
+
+![Architecture of login, issuance, and wallet sign-in](docs/assets/architecture.png)
+
 ## Getting Started
 
 These instructions will get you a copy of the project up and running on your local machine for development and testing purposes.
