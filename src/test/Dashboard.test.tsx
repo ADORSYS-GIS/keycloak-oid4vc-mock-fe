@@ -8,6 +8,7 @@ import type { AuthContextType } from '../types';
 
 const getIssuedCredentialsFor = vi.fn();
 const getIssuedCredentials = vi.fn();
+const getIssuedCredentialListing = vi.fn();
 const getRealmUsers = vi.fn();
 const revokeIssuedCredential = vi.fn();
 const getCredentialOfferDeeplink = vi.fn();
@@ -19,6 +20,7 @@ vi.mock('../services/oid4vc.service', () => ({
   default: {
     getIssuedCredentialsFor: (...args: unknown[]) => getIssuedCredentialsFor(...args),
     getIssuedCredentials: (...args: unknown[]) => getIssuedCredentials(...args),
+    getIssuedCredentialListing: (...args: unknown[]) => getIssuedCredentialListing(...args),
     getIssuedCredentialLimits: (...args: unknown[]) => getIssuedCredentialLimits(...args),
     getRealmUsers: (...args: unknown[]) => getRealmUsers(...args),
     revokeIssuedCredential: (...args: unknown[]) => revokeIssuedCredential(...args),
@@ -43,6 +45,29 @@ const renderDashboard = (isAdmin: boolean) =>
     </AuthContext.Provider>
   );
 
+const emptyListing = {
+  credentials: [] as Array<{
+    credentialId: string;
+    status: string;
+    credentialType?: string;
+    issuedAt?: number;
+  }>,
+  dangling: { count: 0, notice: null as string | null },
+};
+
+const listingOf = (
+  credentials: IssuedVerifiableCredential[],
+  dangling: { count: number; notice: string | null } = { count: 0, notice: null }
+) => ({
+  credentials: credentials.map((credential) => ({
+    credentialId: credential.id,
+    credentialType: credential.credentialType,
+    issuedAt: credential.issuedAt,
+    status: credential.serverStatus ?? (credential.revoked ? 'INVALID' : 'UNKNOWN'),
+  })),
+  dangling,
+});
+
 const chidiCredential: IssuedVerifiableCredential = {
   id: 'chidi-cred-1',
   credentialType: 'IdentityCredential',
@@ -63,6 +88,7 @@ beforeEach(() => {
   getCredentialOfferDeeplink.mockResolvedValue('openid-credential-offer://offer');
   getRealmUsers.mockResolvedValue(otherUsers);
   getIssuedCredentials.mockResolvedValue([]);
+  getIssuedCredentialListing.mockResolvedValue(emptyListing);
   getIssuedCredentialLimits.mockResolvedValue([]);
   revokeIssuedCredential.mockResolvedValue(undefined);
 });
@@ -76,7 +102,7 @@ const findEnabledTargetSelector = async () => {
 
 describe('admin listing and revocation', () => {
   it('lists another user’s VALID credential then revokes it by id only', async () => {
-    getIssuedCredentialsFor.mockResolvedValue([chidiCredential]);
+    getIssuedCredentialListing.mockResolvedValue(listingOf([chidiCredential]));
     renderDashboard(true);
 
     const user = userEvent.setup();
@@ -85,12 +111,12 @@ describe('admin listing and revocation', () => {
 
     expect(await screen.findByText('chidi-cred-1')).toBeInTheDocument();
     expect(screen.getByText('Valid')).toBeInTheDocument();
-    expect(getIssuedCredentialsFor).toHaveBeenCalledWith('chidi', expect.any(AbortSignal));
-    expect(getIssuedCredentialsFor).toHaveBeenCalledTimes(1);
+    expect(getIssuedCredentialListing).toHaveBeenCalledWith('chidi', expect.any(AbortSignal));
+    expect(getIssuedCredentialListing).toHaveBeenCalledTimes(1);
     revokeIssuedCredential.mockImplementation(async () => {
-      getIssuedCredentialsFor.mockResolvedValue([
-        { ...chidiCredential, serverStatus: 'INVALID', revoked: true },
-      ]);
+      getIssuedCredentialListing.mockResolvedValue(
+        listingOf([{ ...chidiCredential, serverStatus: 'INVALID', revoked: true }])
+      );
     });
 
     await user.click(screen.getByRole('button', { name: 'Revoke' }));
@@ -103,14 +129,14 @@ describe('admin listing and revocation', () => {
     expect(screen.getByText('chidi-cred-1')).toBeInTheDocument();
     expect(revokeIssuedCredential).toHaveBeenCalledTimes(1);
     expect(revokeIssuedCredential).toHaveBeenCalledWith('chidi-cred-1', 'compromised');
-    await waitFor(() => expect(getIssuedCredentialsFor).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(getIssuedCredentialListing).toHaveBeenCalledTimes(2));
     expect(screen.getByText('Revoked')).toBeInTheDocument();
   });
 });
 
 describe('credential list rendering from server responses', () => {
   it('shows an error when the credential list request fails', async () => {
-    getIssuedCredentials.mockRejectedValue(new Error('plugin down'));
+    getIssuedCredentialListing.mockRejectedValue(new Error('plugin down'));
 
     renderDashboard(false);
     await userEvent.setup().click(await screen.findByRole('button', { name: 'Credentials' }));
@@ -123,10 +149,12 @@ describe('credential list rendering from server responses', () => {
   });
 
   it('shows UNKNOWN and SUSPENDED distinctly and keeps revoke disabled', async () => {
-    getIssuedCredentials.mockResolvedValue([
-      { id: 'unknown-1', credentialType: 'IdentityCredential', serverStatus: 'UNKNOWN' },
-      { id: 'suspended-1', credentialType: 'IdentityCredential', serverStatus: 'SUSPENDED' },
-    ]);
+    getIssuedCredentialListing.mockResolvedValue(
+      listingOf([
+        { id: 'unknown-1', credentialType: 'IdentityCredential', serverStatus: 'UNKNOWN' },
+        { id: 'suspended-1', credentialType: 'IdentityCredential', serverStatus: 'SUSPENDED' },
+      ])
+    );
 
     renderDashboard(false);
     await userEvent.setup().click(await screen.findByRole('button', { name: 'Credentials' }));
@@ -143,23 +171,27 @@ describe('credential list rendering from server responses', () => {
 
 describe('server-authoritative credential list', () => {
   it('marks the credential revoked immediately after revoking, keeping it visible', async () => {
-    getIssuedCredentials.mockResolvedValue([
-      {
-        id: 'own-cred-1',
-        credentialType: 'IdentityCredential',
-        issuedAt: 1788700000,
-        serverStatus: 'VALID',
-      },
-    ]);
-    revokeIssuedCredential.mockImplementation(async () => {
-      getIssuedCredentials.mockResolvedValue([
+    getIssuedCredentialListing.mockResolvedValue(
+      listingOf([
         {
           id: 'own-cred-1',
           credentialType: 'IdentityCredential',
           issuedAt: 1788700000,
-          serverStatus: 'INVALID',
+          serverStatus: 'VALID',
         },
-      ]);
+      ])
+    );
+    revokeIssuedCredential.mockImplementation(async () => {
+      getIssuedCredentialListing.mockResolvedValue(
+        listingOf([
+          {
+            id: 'own-cred-1',
+            credentialType: 'IdentityCredential',
+            issuedAt: 1788700000,
+            serverStatus: 'INVALID',
+          },
+        ])
+      );
     });
     const user = userEvent.setup();
 
@@ -175,7 +207,7 @@ describe('server-authoritative credential list', () => {
     expect(await screen.findByText('Revoked')).toBeInTheDocument();
     expect(screen.getByText('own-cred-1')).toBeInTheDocument();
     expect(revokeIssuedCredential).toHaveBeenCalledWith('own-cred-1', 'compromised');
-    await waitFor(() => expect(getIssuedCredentials).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(getIssuedCredentialListing).toHaveBeenCalledTimes(2));
     expect(screen.getByText('Revoked')).toBeInTheDocument();
     expect(window.localStorage.length).toBe(0);
   });
@@ -187,13 +219,15 @@ describe('server-authoritative credential list', () => {
       releaseFirstCredentials = resolve;
     });
 
-    getIssuedCredentials.mockResolvedValue([
-      { id: 'cred-new', credentialType: 'IdentityCredential', serverStatus: 'VALID' },
-    ]);
-    getIssuedCredentials.mockImplementationOnce((signal?: AbortSignal) => {
-      firstSignal = signal;
-      return firstCredentials;
-    });
+    getIssuedCredentialListing.mockResolvedValue(
+      listingOf([{ id: 'cred-new', credentialType: 'IdentityCredential', serverStatus: 'VALID' }])
+    );
+    getIssuedCredentialListing.mockImplementationOnce(
+      (_targetUser?: string, signal?: AbortSignal) => {
+        firstSignal = signal;
+        return firstCredentials;
+      }
+    );
 
     const user = userEvent.setup();
     renderDashboard(false);
@@ -207,26 +241,30 @@ describe('server-authoritative credential list', () => {
     expect(firstSignal?.aborted).toBe(true);
 
     await act(async () => {
-      releaseFirstCredentials([
-        { id: 'cred-old', credentialType: 'IdentityCredential', serverStatus: 'INVALID' },
-      ]);
+      releaseFirstCredentials(
+        listingOf([
+          { id: 'cred-old', credentialType: 'IdentityCredential', serverStatus: 'INVALID' },
+        ])
+      );
     });
 
-    await waitFor(() => expect(getIssuedCredentials).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(getIssuedCredentialListing).toHaveBeenCalledTimes(2));
     expect(screen.getByText('cred-new')).toBeInTheDocument();
     expect(screen.queryByText('cred-old')).not.toBeInTheDocument();
     expect(screen.queryByText('Revoked')).not.toBeInTheDocument();
   });
 
   it('does not send a revocation when the reason is only whitespace', async () => {
-    getIssuedCredentials.mockResolvedValue([
-      {
-        id: 'own-cred-1',
-        credentialType: 'IdentityCredential',
-        issuedAt: 1788700000,
-        serverStatus: 'VALID',
-      },
-    ]);
+    getIssuedCredentialListing.mockResolvedValue(
+      listingOf([
+        {
+          id: 'own-cred-1',
+          credentialType: 'IdentityCredential',
+          issuedAt: 1788700000,
+          serverStatus: 'VALID',
+        },
+      ])
+    );
     const user = userEvent.setup();
 
     renderDashboard(false);
@@ -244,14 +282,16 @@ describe('server-authoritative credential list', () => {
   });
 
   it('keeps the credential active and the dialog open when revocation fails', async () => {
-    getIssuedCredentials.mockResolvedValue([
-      {
-        id: 'own-cred-1',
-        credentialType: 'IdentityCredential',
-        issuedAt: 1788700000,
-        serverStatus: 'VALID',
-      },
-    ]);
+    getIssuedCredentialListing.mockResolvedValue(
+      listingOf([
+        {
+          id: 'own-cred-1',
+          credentialType: 'IdentityCredential',
+          issuedAt: 1788700000,
+          serverStatus: 'VALID',
+        },
+      ])
+    );
     revokeIssuedCredential.mockRejectedValue(new Error('revoke rejected'));
     const user = userEvent.setup();
 
@@ -274,28 +314,32 @@ describe('server-authoritative credential list', () => {
   });
 
   it('reflects a revocation performed in another client after refreshing the list', async () => {
-    getIssuedCredentials.mockResolvedValue([
-      {
-        id: 'own-cred-1',
-        credentialType: 'IdentityCredential',
-        issuedAt: 1788700000,
-        serverStatus: 'VALID',
-      },
-    ]);
+    getIssuedCredentialListing.mockResolvedValue(
+      listingOf([
+        {
+          id: 'own-cred-1',
+          credentialType: 'IdentityCredential',
+          issuedAt: 1788700000,
+          serverStatus: 'VALID',
+        },
+      ])
+    );
     const user = userEvent.setup();
 
     renderDashboard(false);
     await user.click(await screen.findByRole('button', { name: 'Credentials' }));
     await screen.findByText('Valid');
 
-    getIssuedCredentials.mockResolvedValue([
-      {
-        id: 'own-cred-1',
-        credentialType: 'IdentityCredential',
-        issuedAt: 1788700000,
-        serverStatus: 'INVALID',
-      },
-    ]);
+    getIssuedCredentialListing.mockResolvedValue(
+      listingOf([
+        {
+          id: 'own-cred-1',
+          credentialType: 'IdentityCredential',
+          issuedAt: 1788700000,
+          serverStatus: 'INVALID',
+        },
+      ])
+    );
     await user.click(screen.getByRole('button', { name: 'Refresh credentials' }));
 
     expect(await screen.findByText('Revoked')).toBeInTheDocument();

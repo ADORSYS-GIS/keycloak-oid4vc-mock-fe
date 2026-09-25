@@ -1,11 +1,13 @@
 import type { ReactNode } from 'react';
-import { Ban, QrCode as QrCodeIcon, RefreshCw } from 'lucide-react';
+import { Ban, Info, QrCode as QrCodeIcon, RefreshCw } from 'lucide-react';
 import { ErrorState, LoadingState, PrimaryButton } from './States';
 import { isRevocable, type CredentialStatus, type DisplayIssuedCredential } from './types';
 import { formatTimestamp } from './format';
 
 export function CredentialsView({
   credentials,
+  danglingCount = 0,
+  danglingNotice,
   credentialsLoading,
   credentialsError,
   revokingCredentialId,
@@ -14,6 +16,8 @@ export function CredentialsView({
   onRevoke,
 }: {
   credentials: DisplayIssuedCredential[];
+  danglingCount?: number;
+  danglingNotice?: string | null;
   credentialsLoading: boolean;
   credentialsError: string | null;
   revokingCredentialId: string | null;
@@ -53,7 +57,16 @@ export function CredentialsView({
         </div>
       )}
 
-      {!credentialsLoading && !credentialsError && credentials.length === 0 && (
+      {!credentialsLoading && !credentialsError && danglingNotice && (
+        <DanglingCredentialsNotice
+          count={danglingCount}
+          notice={danglingNotice}
+          showRefresh={credentials.length === 0}
+          onRefresh={onRefresh}
+        />
+      )}
+
+      {!credentialsLoading && !credentialsError && credentials.length === 0 && !danglingNotice && (
         <EmptyCredentialsState forUser={forUser} />
       )}
 
@@ -87,6 +100,83 @@ export function CredentialsView({
             </PrimaryButton>
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+function hiddenRecordsLabel(count: number): string {
+  return count === 1 ? '1 issuance record is hidden' : `${count} issuance records are hidden`;
+}
+
+function DanglingCredentialsNotice({
+  count,
+  notice,
+  showRefresh,
+  onRefresh,
+}: {
+  count: number;
+  notice: string;
+  showRefresh: boolean;
+  onRefresh: () => void;
+}) {
+  return (
+    <div
+      role="status"
+      style={{
+        backgroundColor: 'var(--color-surface)',
+        border: '1px solid var(--color-border)',
+        borderRadius: 'var(--radius-lg)',
+        padding: '18px 20px',
+        marginBottom: '16px',
+        boxShadow: 'var(--shadow-sm)',
+      }}
+    >
+      <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+        <div
+          style={{
+            width: '36px',
+            height: '36px',
+            borderRadius: '50%',
+            backgroundColor: '#e7f1ff',
+            color: 'var(--color-primary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <Info size={18} aria-hidden="true" />
+        </div>
+        <div>
+          <p
+            style={{
+              margin: '0 0 6px',
+              fontSize: '1rem',
+              fontWeight: 600,
+              color: 'var(--color-text)',
+            }}
+          >
+            {hiddenRecordsLabel(count)}
+          </p>
+          <p
+            style={{
+              margin: 0,
+              lineHeight: 1.55,
+              fontSize: '0.9rem',
+              color: 'var(--color-muted)',
+            }}
+          >
+            {notice}
+          </p>
+        </div>
+      </div>
+      {showRefresh && (
+        <div style={{ marginTop: '16px', textAlign: 'center' }}>
+          <PrimaryButton onClick={onRefresh} icon={<RefreshCw size={18} />}>
+            Refresh credentials
+          </PrimaryButton>
+        </div>
       )}
     </div>
   );

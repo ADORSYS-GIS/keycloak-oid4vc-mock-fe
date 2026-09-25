@@ -36,11 +36,6 @@ export interface IssuedVerifiableCredential {
   serverStatus?: string;
 }
 
-interface IssuedCredentialStatusResponse {
-  credentials: IssuedCredentialStatusEntry[];
-  limits?: IssuedCredentialLimit[];
-}
-
 export interface IssuedCredentialStatusEntry {
   credentialId: string;
   verifiableCredentialId?: string;
@@ -53,6 +48,22 @@ export interface IssuedCredentialStatusEntry {
   clientName?: string;
   revision?: string;
   status: string;
+}
+
+export interface DanglingIssuedCredentials {
+  count: number;
+  notice: string | null;
+}
+
+export interface IssuedCredentialListing {
+  credentials: IssuedCredentialStatusEntry[];
+  dangling: DanglingIssuedCredentials;
+}
+
+interface IssuedCredentialStatusResponse {
+  credentials?: IssuedCredentialStatusEntry[];
+  dangling?: DanglingIssuedCredentials;
+  limits?: IssuedCredentialLimit[];
 }
 
 interface CredentialRevocationResponse {
@@ -439,14 +450,14 @@ class Oid4vcService {
   }
 
   /**
-   * Fetches issued-credential statuses from `/status-list/issued-credential-status`.
+   * Fetches `/status-list/issued-credential-status` (`credentials` plus `dangling`).
    * - No argument: the authenticated bearer's credentials.
    * - With `targetUser`: that holder's credentials (admin list).
    */
-  async getIssuedCredentialStatus(
+  async getIssuedCredentialListing(
     targetUser?: string,
     signal?: AbortSignal
-  ): Promise<IssuedCredentialStatusEntry[]> {
+  ): Promise<IssuedCredentialListing> {
     const queryString = this.buildQueryString({ target_user: targetUser });
     const suffix = queryString ? `?${queryString}` : '';
     const response = await this.getJsonResponse<IssuedCredentialStatusResponse>(
@@ -455,7 +466,26 @@ class Oid4vcService {
       signal
     );
 
-    return response.credentials;
+    return {
+      credentials: response.credentials ?? [],
+      dangling: {
+        count: response.dangling?.count ?? 0,
+        notice: response.dangling?.notice ?? null,
+      },
+    };
+  }
+
+  /**
+   * Fetches issued-credential statuses from `/status-list/issued-credential-status`.
+   * - No argument: the authenticated bearer's credentials.
+   * - With `targetUser`: that holder's credentials (admin list).
+   */
+  async getIssuedCredentialStatus(
+    targetUser?: string,
+    signal?: AbortSignal
+  ): Promise<IssuedCredentialStatusEntry[]> {
+    const listing = await this.getIssuedCredentialListing(targetUser, signal);
+    return listing.credentials;
   }
 
   /**
