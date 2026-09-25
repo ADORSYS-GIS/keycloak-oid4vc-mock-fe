@@ -56,7 +56,10 @@ export function buildDisplayCredentials(
         const pluginStatus = statusByCredentialId.get(credential.id)?.status;
         status = mapPluginStatus(pluginStatus ?? credential.serverStatus);
       }
-      if (revokedCredentialIds.has(credential.id || '') && (status === 'active' || status === 'unknown')) {
+      if (
+        revokedCredentialIds.has(credential.id || '') &&
+        (status === 'active' || status === 'unknown')
+      ) {
         status = 'revoked';
       }
       return toDisplayCredential(credential, status);
