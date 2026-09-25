@@ -10,8 +10,9 @@ export function DashboardTabs({
   return (
     <div
       style={{
-        display: 'inline-flex',
-        marginBottom: '28px',
+        display: 'flex',
+        width: 'fit-content',
+        margin: '0 auto 28px',
         border: '1px solid var(--color-border)',
         borderRadius: 'var(--radius-md)',
         overflow: 'hidden',
