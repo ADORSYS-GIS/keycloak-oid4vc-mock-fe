@@ -21,6 +21,33 @@ export interface IssuedVerifiableCredential {
   clientName?: string;
   clientBaseUrl?: string;
   revision?: string;
+  serverStatus?: string;
+}
+
+export interface IssuedCredentialStatusEntry {
+  credentialId: string;
+  credentialType?: string;
+  issuedAt?: number;
+  expiresAt?: number | null;
+  clientId?: string;
+  clientName?: string;
+  revision?: string;
+  status: string;
+}
+
+export interface DanglingIssuedCredentials {
+  count: number;
+  notice: string | null;
+}
+
+export interface IssuedCredentialListing {
+  credentials: IssuedCredentialStatusEntry[];
+  dangling: DanglingIssuedCredentials;
+}
+
+interface IssuedCredentialStatusResponse {
+  credentials?: IssuedCredentialStatusEntry[];
+  dangling?: DanglingIssuedCredentials;
 }
 
 interface CredentialRevocationResponse {
@@ -57,6 +84,7 @@ class Oid4vcService {
     CREATE_CREDENTIAL_OFFER: '/protocol/oid4vc/create-credential-offer',
     CREDENTIAL_OFFER_URI: '/protocol/oid4vc/credential-offer-uri',
     ISSUED_VERIFIABLE_CREDENTIALS: '/account/issued-verifiable-credentials',
+    ISSUED_CREDENTIAL_STATUS: '/status-list/issued-credential-status',
     TOKEN_REVOCATION: '/status-list/revoke',
   };
 
@@ -357,6 +385,25 @@ class Oid4vcService {
       `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.ISSUED_VERIFIABLE_CREDENTIALS}`,
       'Issued credentials lookup'
     );
+  }
+
+  /**
+   * Fetches `/status-list/issued-credential-status` (`credentials` plus `dangling`).
+   * This method does not merge Keycloak account metadata; the dashboard does that.
+   */
+  async getIssuedCredentialListing(): Promise<IssuedCredentialListing> {
+    const response = await this.getJsonResponse<IssuedCredentialStatusResponse>(
+      `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.ISSUED_CREDENTIAL_STATUS}`,
+      'Issued credential status lookup'
+    );
+
+    return {
+      credentials: response.credentials ?? [],
+      dangling: {
+        count: response.dangling?.count ?? 0,
+        notice: response.dangling?.notice ?? null,
+      },
+    };
   }
 
   async revokeIssuedCredential(

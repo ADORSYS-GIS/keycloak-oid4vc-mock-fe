@@ -22,6 +22,8 @@ const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [credentials, setCredentials] = useState<DisplayIssuedCredential[]>([]);
+  const [danglingCount, setDanglingCount] = useState(0);
+  const [danglingNotice, setDanglingNotice] = useState<string | null>(null);
   const [credentialsLoading, setCredentialsLoading] = useState(false);
   const [credentialsError, setCredentialsError] = useState<string | null>(null);
   const [revokingCredentialId, setRevokingCredentialId] = useState<string | null>(null);
@@ -55,10 +57,28 @@ const Dashboard = () => {
   const loadIssuedCredentials = useCallback(async () => {
     setCredentialsLoading(true);
     setCredentialsError(null);
+    setDanglingCount(0);
+    setDanglingNotice(null);
 
     try {
       const issuedCredentials = await oid4vcService.getIssuedCredentials();
-      setCredentials(buildDisplayCredentials(issuedCredentials, credentialViewOwner));
+      try {
+        const listing = await oid4vcService.getIssuedCredentialListing();
+        setDanglingCount(listing.dangling.count);
+        setDanglingNotice(listing.dangling.count > 0 ? listing.dangling.notice : null);
+        setCredentials(
+          buildDisplayCredentials(issuedCredentials, credentialViewOwner, listing.credentials, {
+            omitUnlisted: true,
+          })
+        );
+      } catch (error) {
+        console.warn('Failed to retrieve issued credential status', error);
+        setCredentials(
+          buildDisplayCredentials(issuedCredentials, credentialViewOwner, [], {
+            statusLookupFailed: true,
+          })
+        );
+      }
     } catch (error) {
       console.error('Failed to retrieve issued credentials', error);
       setCredentialsError('Failed to retrieve issued credentials. Please try again.');
@@ -82,6 +102,9 @@ const Dashboard = () => {
       setCredentialsError(
         'This credential cannot be revoked because it has no issued credential id.'
       );
+      return;
+    }
+    if (credential.status !== 'active') {
       return;
     }
 
@@ -169,6 +192,8 @@ const Dashboard = () => {
           ) : (
             <CredentialsView
               credentials={credentials}
+              danglingCount={danglingCount}
+              danglingNotice={danglingNotice}
               credentialsLoading={credentialsLoading}
               credentialsError={credentialsError}
               revokingCredentialId={revokingCredentialId}

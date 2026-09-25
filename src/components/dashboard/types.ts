@@ -1,7 +1,7 @@
 import type { IssuedVerifiableCredential } from '../../services/oid4vc.service';
 
 export type DashboardTab = 'offer' | 'credentials';
-export type CredentialStatus = 'active' | 'revoked';
+export type CredentialStatus = 'active' | 'revoked' | 'suspended' | 'unknown';
 
 export type DisplayIssuedCredential = IssuedVerifiableCredential & {
   status: CredentialStatus;
