@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import oid4vcService from '../services/oid4vc.service';
 import { CredentialOfferView } from './dashboard/CredentialOfferView';
@@ -8,14 +8,12 @@ import { DashboardTabs } from './dashboard/DashboardTabs';
 import { RevocationDialog } from './dashboard/RevocationDialog';
 import {
   buildDisplayCredentials,
-  getCredentialViewOwner,
-  rememberRevokedCredential,
+  purgeLegacyCredentialViewState,
 } from './dashboard/credentialViewState';
-import type { DashboardTab, DisplayIssuedCredential } from './dashboard/types';
+import { isRevocable, type DashboardTab, type DisplayIssuedCredential } from './dashboard/types';
 
 const Dashboard = () => {
   const { userProfile, logout } = useAuth();
-  const credentialViewOwner = getCredentialViewOwner(userProfile);
   const [activeTab, setActiveTab] = useState<DashboardTab>('offer');
   const [offerDeeplink, setOfferDeeplink] = useState<string | null>(null);
   const [offerDeeplinkVal, setOfferDeeplinkVal] = useState<string | null>(null);
@@ -31,6 +29,19 @@ const Dashboard = () => {
   const [revocationReason, setRevocationReason] = useState('');
   const [revocationReasonError, setRevocationReasonError] = useState<string | null>(null);
   const [importantNotesExpanded, setImportantNotesExpanded] = useState(true);
+  // Out-of-order protection for the credentials list. Every load is numbered, and only
+  // the newest number may update what is on screen. Each load's requests also share an
+  // AbortController, so an older load is cancelled the moment a newer one starts — for
+  // example, a load that started before a revocation must not finish afterwards and
+  // mark the just-revoked credential Valid again.
+  const credentialsRequestId = useRef(0);
+  const credentialsAbortRef = useRef<AbortController | null>(null);
+
+  // Older versions of this app saved revoked credentials in localStorage; delete that
+  // leftover data once when the dashboard loads.
+  useEffect(() => {
+    purgeLegacyCredentialViewState();
+  }, []);
 
   const prepareQr = useCallback(async () => {
     setIsLoading(true);
@@ -52,20 +63,66 @@ const Dashboard = () => {
     }
   }, []);
 
+  // Cancels any credential load that is still running, then hands out the number and
+  // cancellation signal the next load will use. The signal is passed to the fetch calls
+  // so they can be cancelled while still running.
+  const beginCredentialsLoad = useCallback((): { requestId: number; signal: AbortSignal } => {
+    credentialsAbortRef.current?.abort();
+    const abortController = new AbortController();
+    credentialsAbortRef.current = abortController;
+    return { requestId: ++credentialsRequestId.current, signal: abortController.signal };
+  }, []);
+
   const loadIssuedCredentials = useCallback(async () => {
+    // Cancel any load still running, then number this one. From here on, only this
+    // newest load is allowed to update the list, the error message, or the spinner.
+    const { requestId, signal } = beginCredentialsLoad();
     setCredentialsLoading(true);
     setCredentialsError(null);
 
     try {
-      const issuedCredentials = await oid4vcService.getIssuedCredentials();
-      setCredentials(buildDisplayCredentials(issuedCredentials, credentialViewOwner));
+      // Two requests run together: the account endpoint returns the credentials (the
+      // rows) and the status endpoint returns each credential's status (the badge).
+      // If the account request fails there is nothing to show, so the tab shows an
+      // error. If only the status request fails, the rows still show, but every badge
+      // reads Unknown and Revoke is disabled — guessing a status could display a
+      // revoked credential as Valid.
+      const [credentialsResult, statusesResult] = await Promise.allSettled([
+        oid4vcService.getIssuedCredentials(signal),
+        oid4vcService.getIssuedCredentialStatus(signal),
+      ]);
+
+      // A newer load has started while this one was waiting. Its results are the
+      // current ones, so drop everything this older load received.
+      if (requestId !== credentialsRequestId.current) return;
+
+      if (credentialsResult.status === 'rejected') {
+        // No credentials means nothing to show, so treat this like a failed load.
+        throw credentialsResult.reason;
+      }
+
+      // The status request failed, so the real status is unknown. Show Unknown instead
+      // of Valid to be safe; Unknown keeps the Revoke button disabled.
+      const statusLookupFailed = statusesResult.status === 'rejected';
+      if (statusLookupFailed) {
+        console.warn('Failed to retrieve issued credential status', statusesResult.reason);
+      }
+      const serverStatuses = statusLookupFailed ? [] : statusesResult.value;
+      const issuedCredentials = credentialsResult.value;
+
+      setCredentials(
+        buildDisplayCredentials(issuedCredentials, serverStatuses, { statusLookupFailed })
+      );
     } catch (error) {
+      if (requestId !== credentialsRequestId.current) return;
       console.error('Failed to retrieve issued credentials', error);
       setCredentialsError('Failed to retrieve issued credentials. Please try again.');
     } finally {
-      setCredentialsLoading(false);
+      if (requestId === credentialsRequestId.current) {
+        setCredentialsLoading(false);
+      }
     }
-  }, [credentialViewOwner]);
+  }, [beginCredentialsLoad]);
 
   useEffect(() => {
     prepareQr();
@@ -84,6 +141,9 @@ const Dashboard = () => {
       );
       return;
     }
+    if (!isRevocable(credential.status)) {
+      return;
+    }
 
     setCredentialToRevoke(credential);
     setRevocationReason('');
@@ -91,16 +151,21 @@ const Dashboard = () => {
     setImportantNotesExpanded(true);
   };
 
-  const closeRevocationDialog = () => {
-    if (revokingCredentialId) return;
-
+  const resetRevocationDialog = () => {
     setCredentialToRevoke(null);
     setRevocationReason('');
     setRevocationReasonError(null);
   };
 
+  const closeRevocationDialog = () => {
+    // Cancel must not clear dialog state while a revoke request is in flight.
+    if (revokingCredentialId) return;
+    resetRevocationDialog();
+  };
+
   const confirmRevocation = async () => {
     if (!credentialToRevoke?.id) return;
+    if (!isRevocable(credentialToRevoke.status)) return;
 
     const reason = revocationReason.trim();
     if (!reason) {
@@ -114,7 +179,7 @@ const Dashboard = () => {
 
     try {
       await oid4vcService.revokeIssuedCredential(credentialToRevoke.id, reason);
-      rememberRevokedCredential(credentialViewOwner, credentialToRevoke);
+      // Show the credential as Revoked right away, without waiting for the reload below.
       setCredentials((currentCredentials) =>
         currentCredentials.map((issuedCredential) =>
           issuedCredential.id === credentialToRevoke.id
@@ -122,7 +187,12 @@ const Dashboard = () => {
             : issuedCredential
         )
       );
-      closeRevocationDialog();
+      resetRevocationDialog();
+      // Then reload the list from the server. The reload replaces the temporary Revoked
+      // badge with what the server now says, and cancels any older load still running so
+      // it cannot mark the credential Valid again. If the reload itself fails, the usual
+      // list error banner appears.
+      void loadIssuedCredentials();
     } catch (error) {
       console.error('Failed to revoke issued credential', error);
       setCredentialsError('Failed to revoke issued credential. Please try again.');
