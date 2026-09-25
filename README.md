@@ -63,3 +63,8 @@ In the project directory, you can run:
 - `npm run build`: Builds the app for production to the `dist` folder.
 - `npm run lint`: Lints the codebase using ESLint.
 - `npm run preview`: Serves the production build locally for preview.
+
+## License
+
+This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0-only).
+See [LICENSE](./LICENSE) for details.
