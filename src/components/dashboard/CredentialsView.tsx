@@ -1,11 +1,13 @@
 import type { ReactNode } from 'react';
-import { Ban, QrCode as QrCodeIcon, RefreshCw } from 'lucide-react';
+import { Ban, Info, QrCode as QrCodeIcon, RefreshCw } from 'lucide-react';
 import { ErrorState, LoadingState, PrimaryButton } from './States';
 import type { CredentialStatus, DisplayIssuedCredential } from './types';
 import { formatTimestamp } from './format';
 
 export function CredentialsView({
   credentials,
+  danglingCount = 0,
+  danglingNotice,
   credentialsLoading,
   credentialsError,
   revokingCredentialId,
@@ -13,6 +15,8 @@ export function CredentialsView({
   onRevoke,
 }: {
   credentials: DisplayIssuedCredential[];
+  danglingCount?: number;
+  danglingNotice?: string | null;
   credentialsLoading: boolean;
   credentialsError: string | null;
   revokingCredentialId: string | null;
@@ -50,7 +54,16 @@ export function CredentialsView({
         </div>
       )}
 
-      {!credentialsLoading && !credentialsError && credentials.length === 0 && (
+      {!credentialsLoading && !credentialsError && danglingNotice && (
+        <DanglingCredentialsNotice
+          count={danglingCount}
+          notice={danglingNotice}
+          showRefresh={credentials.length === 0}
+          onRefresh={onRefresh}
+        />
+      )}
+
+      {!credentialsLoading && !credentialsError && credentials.length === 0 && !danglingNotice && (
         <EmptyCredentialsState />
       )}
 
@@ -79,6 +92,83 @@ export function CredentialsView({
             </PrimaryButton>
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+function hiddenRecordsLabel(count: number): string {
+  return count === 1 ? '1 issuance record is hidden' : `${count} issuance records are hidden`;
+}
+
+function DanglingCredentialsNotice({
+  count,
+  notice,
+  showRefresh,
+  onRefresh,
+}: {
+  count: number;
+  notice: string;
+  showRefresh: boolean;
+  onRefresh: () => void;
+}) {
+  return (
+    <div
+      role="status"
+      style={{
+        backgroundColor: 'var(--color-surface)',
+        border: '1px solid var(--color-border)',
+        borderRadius: 'var(--radius-lg)',
+        padding: '18px 20px',
+        marginBottom: '16px',
+        boxShadow: 'var(--shadow-sm)',
+      }}
+    >
+      <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+        <div
+          style={{
+            width: '36px',
+            height: '36px',
+            borderRadius: '50%',
+            backgroundColor: '#e7f1ff',
+            color: 'var(--color-primary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <Info size={18} aria-hidden="true" />
+        </div>
+        <div>
+          <p
+            style={{
+              margin: '0 0 6px',
+              fontSize: '1rem',
+              fontWeight: 600,
+              color: 'var(--color-text)',
+            }}
+          >
+            {hiddenRecordsLabel(count)}
+          </p>
+          <p
+            style={{
+              margin: 0,
+              lineHeight: 1.55,
+              fontSize: '0.9rem',
+              color: 'var(--color-muted)',
+            }}
+          >
+            {notice}
+          </p>
+        </div>
+      </div>
+      {showRefresh && (
+        <div style={{ marginTop: '16px', textAlign: 'center' }}>
+          <PrimaryButton onClick={onRefresh} icon={<RefreshCw size={18} />}>
+            Refresh credentials
+          </PrimaryButton>
+        </div>
       )}
     </div>
   );
@@ -209,7 +299,7 @@ function CredentialCard({
       >
         <button
           onClick={() => onRevoke(credential)}
-          disabled={revoking || credential.status === 'revoked'}
+          disabled={revoking || credential.status !== 'active'}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -219,10 +309,10 @@ function CredentialCard({
             border: 'none',
             padding: '9px 16px',
             borderRadius: 'var(--radius-sm)',
-            cursor: revoking || credential.status === 'revoked' ? 'not-allowed' : 'pointer',
+            cursor: revoking || credential.status !== 'active' ? 'not-allowed' : 'pointer',
             fontSize: '0.9rem',
             fontWeight: 500,
-            opacity: revoking || credential.status === 'revoked' ? 0.7 : 1,
+            opacity: revoking || credential.status !== 'active' ? 0.7 : 1,
             transition: 'background-color 0.2s ease',
           }}
         >
@@ -263,9 +353,25 @@ function DetailItem({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
+function statusAppearance(status: CredentialStatus): {
+  label: string;
+  backgroundColor: string;
+  color: string;
+} {
+  switch (status) {
+    case 'revoked':
+      return { label: 'Revoked', backgroundColor: '#f8d7da', color: '#842029' };
+    case 'suspended':
+      return { label: 'Suspended', backgroundColor: '#fff3cd', color: '#664d03' };
+    case 'unknown':
+      return { label: 'Unknown', backgroundColor: '#e2e3e5', color: '#41464b' };
+    default:
+      return { label: 'Valid', backgroundColor: '#d1e7dd', color: '#0f5132' };
+  }
+}
+
 function StatusBadge({ status }: { status: CredentialStatus }) {
-  const isRevoked = status === 'revoked';
-  const displayLabel = isRevoked ? 'Revoked' : 'Valid';
+  const appearance = statusAppearance(status);
 
   return (
     <span
@@ -275,8 +381,8 @@ function StatusBadge({ status }: { status: CredentialStatus }) {
         gap: '6px',
         padding: '5px 12px',
         borderRadius: '999px',
-        backgroundColor: isRevoked ? '#f8d7da' : '#d1e7dd',
-        color: isRevoked ? '#842029' : '#0f5132',
+        backgroundColor: appearance.backgroundColor,
+        color: appearance.color,
         fontSize: '0.82rem',
         fontWeight: 700,
         textTransform: 'capitalize',
@@ -288,10 +394,10 @@ function StatusBadge({ status }: { status: CredentialStatus }) {
           width: '8px',
           height: '8px',
           borderRadius: '50%',
-          backgroundColor: isRevoked ? '#842029' : '#0f5132',
+          backgroundColor: appearance.color,
         }}
       />
-      {displayLabel}
+      {appearance.label}
     </span>
   );
 }
