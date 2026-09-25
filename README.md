@@ -64,6 +64,15 @@ In the project directory, you can run:
 - `npm run lint`: Lints the codebase using ESLint.
 - `npm run preview`: Serves the production build locally for preview.
 
+## Versioning
+
+This project uses [Semantic Versioning](https://semver.org/). The current version is `0.1.0`, kept in `package.json`.
+
+Releases are git tags named `vX.Y.Z` and match that version. To cut a release:
+
+1. Bump `version` in `package.json`.
+2. Tag the release commit as `vX.Y.Z`.
+
 ## License
 
 This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0-only).

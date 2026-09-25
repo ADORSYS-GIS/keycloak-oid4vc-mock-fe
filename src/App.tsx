@@ -38,6 +38,18 @@ function App() {
       <AuthProvider>
         <AppRoutes />
       </AuthProvider>
+      <footer
+        style={{
+          position: 'fixed',
+          right: 16,
+          bottom: 12,
+          color: '#6c757d',
+          fontSize: 12,
+          lineHeight: 1,
+        }}
+      >
+        v{__APP_VERSION__}
+      </footer>
     </BrowserRouter>
   );
 }
