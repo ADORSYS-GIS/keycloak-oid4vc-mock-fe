@@ -1,4 +1,7 @@
-import type { IssuedVerifiableCredential } from '../../services/oid4vc.service';
+import type {
+  IssuedCredentialLimit,
+  IssuedVerifiableCredential,
+} from '../../services/oid4vc.service';
 import type { UserProfile } from '../../types';
 import type { CredentialStatus, DisplayIssuedCredential, StoredCredentialViewState } from './types';
 
@@ -44,6 +47,49 @@ export function rememberRevokedCredential(owner: string, credential: IssuedVerif
       [credential.id]: credential,
     },
   });
+}
+
+/**
+ * Returns the limit entry for the credential type when its quota is exhausted
+ * (`remaining` is 0 or less), or `null` when no warning should be shown.
+ *
+ * An absent or empty `limits` payload (unlimited credential types, or plugins
+ * that do not expose limits yet) always yields `null` — the dashboard must
+ * behave exactly as before in that case.
+ */
+export function getCredentialLimitWarning(
+  limits: IssuedCredentialLimit[],
+  credentialConfigurationId: string
+): IssuedCredentialLimit | null {
+  const limit = limits.find(
+    (entry) => entry.credentialConfigurationId === credentialConfigurationId
+  );
+
+  if (!limit || !Number.isFinite(limit.max) || limit.max <= 0) {
+    return null;
+  }
+
+  return limit.remaining <= 0 ? limit : null;
+}
+
+/**
+ * Warning copy for a quota that is already exhausted.
+ * `REJECT` fails the next issuance. `REVOKE_OLDEST` revokes the oldest valid
+ * credential of this type and then continues issuance.
+ */
+export function formatIssuanceLimitWarning(limit: IssuedCredentialLimit): string {
+  const reached = `You have reached the issuance limit for this credential type (${limit.activeCount} of ${limit.max} issued).`;
+  const policy = limit.overflowPolicy?.trim().toUpperCase();
+
+  if (policy === 'REJECT') {
+    return `${reached} Issuing another credential will fail. Revoking a credential frees a slot and clears this warning.`;
+  }
+
+  if (policy === 'REVOKE_OLDEST') {
+    return `${reached} Issuing another credential will automatically revoke the oldest valid credential.`;
+  }
+
+  return `${reached} Overflow policy in force: ${limit.overflowPolicy}.`;
 }
 
 function toDisplayCredential(

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'react-qr-code';
 import { Check, Copy, ExternalLink, KeyRound, RefreshCw, Zap } from 'lucide-react';
-import { ErrorState, LoadingState, PrimaryButton } from './States';
-import { IS_PRE_AUTHORIZED_FLOW } from '../../services/oid4vc.service';
+import { ErrorState, LoadingState, PrimaryButton, WarningState } from './States';
+import { IS_PRE_AUTHORIZED_FLOW, type IssuedCredentialLimit } from '../../services/oid4vc.service';
+import { formatIssuanceLimitWarning } from './credentialViewState';
 
 type OfferMode = 'value' | 'reference';
 
@@ -11,12 +12,14 @@ export function CredentialOfferView({
   error,
   offerDeeplink,
   offerDeeplinkVal,
+  limitWarning,
   onRetry,
 }: {
   isLoading: boolean;
   error: string | null;
   offerDeeplink: string | null;
   offerDeeplinkVal: string | null;
+  limitWarning: IssuedCredentialLimit | null;
   onRetry: () => void;
 }) {
   const [offerMode, setOfferMode] = useState<OfferMode>('reference');
@@ -92,6 +95,13 @@ export function CredentialOfferView({
             Mode: {IS_PRE_AUTHORIZED_FLOW ? 'Pre-authorized' : 'Authorization code'}
           </div>
         </div>
+
+        {/* An offer error replaces the QR area, so hide the advisory banner with it. */}
+        {!error && limitWarning && (
+          <div style={{ marginBottom: '28px' }}>
+            <WarningState message={formatIssuanceLimitWarning(limitWarning)} />
+          </div>
+        )}
 
         <div
           style={{

@@ -30,6 +30,18 @@ interface CredentialRevocationResponse {
   error_description?: string;
 }
 
+export interface IssuedCredentialLimit {
+  credentialConfigurationId: string;
+  max: number;
+  activeCount: number;
+  remaining: number;
+  overflowPolicy: string;
+}
+
+interface IssuedCredentialStatusResponse {
+  limits?: IssuedCredentialLimit[];
+}
+
 export const CredentialConfigurationId = {
   DATEV_COMPANY: 'DatevCompanyCredential',
 } as const;
@@ -57,6 +69,7 @@ class Oid4vcService {
     CREATE_CREDENTIAL_OFFER: '/protocol/oid4vc/create-credential-offer',
     CREDENTIAL_OFFER_URI: '/protocol/oid4vc/credential-offer-uri',
     ISSUED_VERIFIABLE_CREDENTIALS: '/account/issued-verifiable-credentials',
+    ISSUED_CREDENTIAL_STATUS: '/status-list/issued-credential-status',
     TOKEN_REVOCATION: '/status-list/revoke',
   };
 
@@ -357,6 +370,26 @@ class Oid4vcService {
       `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.ISSUED_VERIFIABLE_CREDENTIALS}`,
       'Issued credentials lookup'
     );
+  }
+
+  async getIssuedCredentialLimits(): Promise<IssuedCredentialLimit[]> {
+    const response = await fetch(
+      `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.ISSUED_CREDENTIAL_STATUS}`,
+      { headers: await this.getAuthHeaders() }
+    );
+
+    // The limits payload is optional (older plugins and unlimited types omit it);
+    // treat any endpoint or payload failure as "no limits" instead of an error.
+    if (!response.ok) {
+      return [];
+    }
+
+    try {
+      const data = (await response.json()) as IssuedCredentialStatusResponse;
+      return Array.isArray(data?.limits) ? data.limits : [];
+    } catch {
+      return [];
+    }
   }
 
   async revokeIssuedCredential(
