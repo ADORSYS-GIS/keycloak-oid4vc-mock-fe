@@ -12,13 +12,16 @@ const getIssuedCredentialStatus = vi.fn();
 const getRealmUsers = vi.fn();
 const revokeIssuedCredential = vi.fn();
 const getCredentialOfferDeeplink = vi.fn();
+const getIssuedCredentialLimits = vi.fn();
 
 vi.mock('../services/oid4vc.service', () => ({
   IS_PRE_AUTHORIZED_FLOW: false,
+  DEFAULT_CREDENTIAL_CONFIGURATION_ID: 'DatevCompanyCredential',
   default: {
     getIssuedCredentialsFor: (...args: unknown[]) => getIssuedCredentialsFor(...args),
     getIssuedCredentials: (...args: unknown[]) => getIssuedCredentials(...args),
     getIssuedCredentialStatus: (...args: unknown[]) => getIssuedCredentialStatus(...args),
+    getIssuedCredentialLimits: (...args: unknown[]) => getIssuedCredentialLimits(...args),
     getRealmUsers: (...args: unknown[]) => getRealmUsers(...args),
     revokeIssuedCredential: (...args: unknown[]) => revokeIssuedCredential(...args),
     getCredentialOfferDeeplink: (...args: unknown[]) => getCredentialOfferDeeplink(...args),
@@ -64,6 +67,7 @@ beforeEach(() => {
   getRealmUsers.mockResolvedValue(otherUsers);
   getIssuedCredentials.mockResolvedValue([]);
   getIssuedCredentialStatus.mockResolvedValue([]);
+  getIssuedCredentialLimits.mockResolvedValue([]);
   revokeIssuedCredential.mockResolvedValue(undefined);
 });
 
