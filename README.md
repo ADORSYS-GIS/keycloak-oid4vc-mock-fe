@@ -2,6 +2,8 @@
 
 This project is a React application that demonstrates how to integrate Keycloak for Single Sign-On (SSO) and interact with an OID4VC (OpenID for Verifiable Credentials) service. It provides a basic setup for user authentication and a protected dashboard page.
 
+![Credential Portal showing a credential offer QR code](docs/assets/credential-portal.png)
+
 ## Features
 
 - **User Authentication:** Login and logout functionality using Keycloak SSO.
