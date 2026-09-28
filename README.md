@@ -24,7 +24,7 @@ These instructions will get you a copy of the project up and running on your loc
 
 - [Node.js](https://nodejs.org/) (v18 or higher recommended)
 - [npm](https://yarnpkg.com/) package manager
-- Keycloak 26.6 or later, with a configured realm and client. See [Compatibility](#compatibility).
+- A running Keycloak instance with a configured realm and client.
 
 ### Installation
 
@@ -76,8 +76,6 @@ This application has been tested with:
 | **keycloak-js** | ^26.2.1     |
 
 While it may work with other versions, compatibility is not guaranteed. Ensure your environment matches the tested versions for best results.
-
-Keycloak 26.6 and later is supported. The client creates the credential offer with `create-credential-offer`, and falls back to `credential-offer-uri` when that endpoint is not available.
 
 ## Versioning
 
