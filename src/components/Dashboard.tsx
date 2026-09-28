@@ -94,10 +94,22 @@ const Dashboard = () => {
   const offerRequestIdRef = useRef(0);
   const credentialsRequestIdRef = useRef(0);
 
+  // The limits payload is advisory: if the plugin does not expose it, the
+  // dashboard keeps working exactly as before (no warning shown).
+  const loadCredentialLimits = useCallback(async () => {
+    try {
+      setCredentialLimits(await oid4vcService.getIssuedCredentialLimits());
+    } catch (error) {
+      console.warn('Failed to retrieve credential issuance limits', error);
+      setCredentialLimits([]);
+    }
+  }, []);
+
   const prepareQr = useCallback(async () => {
     const requestId = ++offerRequestIdRef.current;
     setIsLoading(true);
     setError(null);
+    void loadCredentialLimits();
 
     try {
       const targetUser = getActiveTargetUser();
@@ -116,18 +128,7 @@ const Dashboard = () => {
     } finally {
       if (requestId === offerRequestIdRef.current) setIsLoading(false);
     }
-  }, [getActiveTargetUser]);
-
-  // The limits payload is advisory: if the plugin does not expose it, the
-  // dashboard keeps working exactly as before (no warning shown).
-  const loadCredentialLimits = useCallback(async () => {
-    try {
-      setCredentialLimits(await oid4vcService.getIssuedCredentialLimits());
-    } catch (error) {
-      console.warn('Failed to retrieve credential issuance limits', error);
-      setCredentialLimits([]);
-    }
-  }, []);
+  }, [getActiveTargetUser, loadCredentialLimits]);
 
   const loadIssuedCredentials = useCallback(async () => {
     const requestId = ++credentialsRequestIdRef.current;
@@ -176,23 +177,6 @@ const Dashboard = () => {
   useEffect(() => {
     prepareQr();
   }, [prepareQr]);
-
-  // Keep the limit warning in sync while this tab is open. The status
-  // endpoint is the only signal that the cap has been reached.
-  useEffect(() => {
-    if (activeTab !== 'offer') return;
-
-    const refreshLimits = () => {
-      void loadCredentialLimits();
-    };
-
-    refreshLimits();
-    const intervalId = window.setInterval(refreshLimits, 5000);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [activeTab, loadCredentialLimits]);
 
   useEffect(() => {
     if (activeTab === 'credentials') {

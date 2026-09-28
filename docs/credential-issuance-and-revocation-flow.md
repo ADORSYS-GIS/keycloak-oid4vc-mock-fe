@@ -166,9 +166,8 @@ The token-status-list plugin can cap how many non-revoked credentials a holder m
 
 The client is not responsible for configuring or enforcing the limit. It only warns:
 
-- While the `Credential Offer` tab is open, the dashboard polls `GET .../status-list/issued-credential-status` every few seconds and reads the optional `limits` array. The warning appears as soon as the cap is reached, without a page reload.
+- On load, and again when the credential offer is refreshed, the dashboard reads the optional `limits` array from `GET .../status-list/issued-credential-status`.
 - On the `Credential Offer` tab, when the entry for `VITE_OID4VC_DEFAULT_CREDENTIAL_CONFIGURATION_ID` has `remaining: 0`, an advisory warning is shown above the QR code.
-- The warning names the overflow policy in force. `REJECT` means issuing another credential will fail. `REVOKE_OLDEST` means issuing another credential will automatically revoke the oldest valid credential of that type ([eudiw-app#863](https://github.com/adorsys/eudiw-app/issues/863)).
 - The QR code stays visible and scannable. The warning is advisory; enforcement stays on the plugin.
 - After a successful revocation, the client reloads `limits` so the warning clears when a slot is free.
 - If the `limits` payload is missing, empty, or the endpoint fails, no warning is shown and all existing flows continue unchanged.

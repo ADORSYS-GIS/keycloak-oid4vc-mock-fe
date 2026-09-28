@@ -16,7 +16,7 @@ const getIssuedCredentialLimits = vi.fn();
 
 vi.mock('../services/oid4vc.service', () => ({
   IS_PRE_AUTHORIZED_FLOW: false,
-  DEFAULT_CREDENTIAL_CONFIGURATION_ID: 'DatevCompanyCredential',
+  DEFAULT_CREDENTIAL_CONFIGURATION_ID: 'IdentityCredential',
   default: {
     getIssuedCredentialsFor: (...args: unknown[]) => getIssuedCredentialsFor(...args),
     getIssuedCredentials: (...args: unknown[]) => getIssuedCredentials(...args),
