@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Ban, QrCode as QrCodeIcon, RefreshCw } from 'lucide-react';
 import { ErrorState, LoadingState, PrimaryButton } from './States';
-import type { CredentialStatus, DisplayIssuedCredential } from './types';
+import { isRevocable, type CredentialStatus, type DisplayIssuedCredential } from './types';
 import { formatTimestamp } from './format';
 
 export function CredentialsView({
@@ -9,6 +9,7 @@ export function CredentialsView({
   credentialsLoading,
   credentialsError,
   revokingCredentialId,
+  forUser,
   onRefresh,
   onRevoke,
 }: {
@@ -16,6 +17,8 @@ export function CredentialsView({
   credentialsLoading: boolean;
   credentialsError: string | null;
   revokingCredentialId: string | null;
+  /** Target username when an admin is listing another holder; omitted for self-service. */
+  forUser?: string;
   onRefresh: () => void;
   onRevoke: (credential: DisplayIssuedCredential) => void;
 }) {
@@ -51,7 +54,7 @@ export function CredentialsView({
       )}
 
       {!credentialsLoading && !credentialsError && credentials.length === 0 && (
-        <EmptyCredentialsState />
+        <EmptyCredentialsState forUser={forUser} />
       )}
 
       {!credentialsLoading && !credentialsError && credentials.length > 0 && (
@@ -84,7 +87,7 @@ export function CredentialsView({
   );
 }
 
-function EmptyCredentialsState() {
+function EmptyCredentialsState({ forUser }: { forUser?: string }) {
   return (
     <div
       style={{
@@ -122,7 +125,9 @@ function EmptyCredentialsState() {
         No issued credentials found
       </h3>
       <p style={{ margin: 0, color: 'var(--color-muted)', lineHeight: 1.6 }}>
-        Once a credential is issued to your account, it will appear here.
+        {forUser
+          ? `Once a credential is issued to ${forUser}, it will appear here.`
+          : 'Once a credential is issued to your account, it will appear here.'}
       </p>
     </div>
   );
@@ -137,6 +142,8 @@ function CredentialCard({
   revoking: boolean;
   onRevoke: (credential: DisplayIssuedCredential) => void;
 }) {
+  const canRevoke = !revoking && isRevocable(credential.status);
+
   return (
     <div
       style={{
@@ -209,7 +216,7 @@ function CredentialCard({
       >
         <button
           onClick={() => onRevoke(credential)}
-          disabled={revoking || credential.status === 'revoked'}
+          disabled={!canRevoke}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -219,10 +226,10 @@ function CredentialCard({
             border: 'none',
             padding: '9px 16px',
             borderRadius: 'var(--radius-sm)',
-            cursor: revoking || credential.status === 'revoked' ? 'not-allowed' : 'pointer',
+            cursor: canRevoke ? 'pointer' : 'not-allowed',
             fontSize: '0.9rem',
             fontWeight: 500,
-            opacity: revoking || credential.status === 'revoked' ? 0.7 : 1,
+            opacity: canRevoke ? 1 : 0.7,
             transition: 'background-color 0.2s ease',
           }}
         >
@@ -263,9 +270,25 @@ function DetailItem({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
+function statusAppearance(status: CredentialStatus): {
+  label: string;
+  backgroundColor: string;
+  color: string;
+} {
+  switch (status) {
+    case 'revoked':
+      return { label: 'Revoked', backgroundColor: '#f8d7da', color: '#842029' };
+    case 'suspended':
+      return { label: 'Suspended', backgroundColor: '#fff3cd', color: '#664d03' };
+    case 'unknown':
+      return { label: 'Unknown', backgroundColor: '#e2e3e5', color: '#41464b' };
+    default:
+      return { label: 'Valid', backgroundColor: '#d1e7dd', color: '#0f5132' };
+  }
+}
+
 function StatusBadge({ status }: { status: CredentialStatus }) {
-  const isRevoked = status === 'revoked';
-  const displayLabel = isRevoked ? 'Revoked' : 'Valid';
+  const appearance = statusAppearance(status);
 
   return (
     <span
@@ -275,8 +298,8 @@ function StatusBadge({ status }: { status: CredentialStatus }) {
         gap: '6px',
         padding: '5px 12px',
         borderRadius: '999px',
-        backgroundColor: isRevoked ? '#f8d7da' : '#d1e7dd',
-        color: isRevoked ? '#842029' : '#0f5132',
+        backgroundColor: appearance.backgroundColor,
+        color: appearance.color,
         fontSize: '0.82rem',
         fontWeight: 700,
         textTransform: 'capitalize',
@@ -288,10 +311,10 @@ function StatusBadge({ status }: { status: CredentialStatus }) {
           width: '8px',
           height: '8px',
           borderRadius: '50%',
-          backgroundColor: isRevoked ? '#842029' : '#0f5132',
+          backgroundColor: appearance.color,
         }}
       />
-      {displayLabel}
+      {appearance.label}
     </span>
   );
 }
