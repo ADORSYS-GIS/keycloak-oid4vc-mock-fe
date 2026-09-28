@@ -25,7 +25,7 @@ The frontend is responsible for:
 - authenticating the user through Keycloak;
 - requesting credential offer links from Keycloak;
 - rendering the selected QR code variant;
-- loading issued credentials for the authenticated account;
+- loading issued credentials from the token status plugin;
 - collecting a revocation reason before sending the revocation request;
 - keeping a revoked credential visible in the UI with status `revoked`.
 
@@ -71,37 +71,22 @@ username={preferred_username}
 
 ### Load Issued Credentials
 
-```text
-GET /realms/{realm}/account/issued-verifiable-credentials
-```
-
-The response is displayed in the `Credentials` tab. The UI uses the credential `id` as the revocation target and displays:
-
-- credential type;
-- issued timestamp;
-- revision;
-- wallet client;
-- status.
-
-The account endpoint does not carry revocation status, so the dashboard also fetches the token status plugin's view and merges it by issued credential id:
+The credentials tab loads from the token status plugin. That response includes the credential id, type, issued time, revision, wallet client, and status. The account endpoint is not used.
 
 ```text
 GET /realms/{realm}/status-list/issued-credential-status
 ```
 
-Without a `target_user` parameter the plugin resolves the caller from the bearer token. The two responses are merged by issued credential id: the account endpoint supplies the metadata, the plugin supplies the authoritative status.
+Without `target_user`, the plugin uses the bearer token.
 
-| Plugin status                      | UI badge  | Revoke   |
-| ---------------------------------- | --------- | -------- |
-| `VALID`                            | Valid     | enabled  |
-| `INVALID`                          | Revoked   | disabled |
-| `SUSPENDED`                        | Suspended | disabled |
-| `UNKNOWN` (no status-list mapping) | Unknown   | disabled |
-| lookup failed                      | Unknown   | disabled |
+| Plugin status | UI badge  | Revoke   |
+| ------------- | --------- | -------- |
+| `VALID`       | Valid     | enabled  |
+| `INVALID`     | Revoked   | disabled |
+| `SUSPENDED`   | Suspended | disabled |
+| `UNKNOWN`     | Unknown   | disabled |
 
-A missing mapping or a failed plugin call must not render as Valid: revocation would 404, and a revoked credential could look actionable.
-
-Only credentials returned by the account endpoint are rendered. Credentials missing from that response are not shown. No credential status is stored in `localStorage`; a one-time purge removes any legacy browser state from previous builds. After a successful revoke the UI marks the row `revoked` immediately and reloads the authoritative plugin status (including revokes performed in another client); superseded loads are aborted so a stale response can never overwrite newer data.
+Only credentials returned by that endpoint are shown. `UNKNOWN` is not shown as Valid.
 
 ### Revoke Issued Credential
 
@@ -118,7 +103,7 @@ credential_id={issuedCredentialId}
 reason={userProvidedReason}
 ```
 
-After a successful response, the frontend marks the credential as `revoked` in memory and keeps it visible. This is intentional: a revoked credential should remain auditable in the UI instead of disappearing from the list. Nothing is written to `localStorage`.
+After a successful response, the frontend marks the credential immediately as `revoked` on the UI.
 
 ## Sequence Diagram
 
@@ -154,7 +139,7 @@ with the pre-26.6 fallback `username={selectedUsername}` on `credential-offer-ur
 
 ### List Credentials Issued to Another User
 
-The admin list uses the token status plugin endpoint instead of the account endpoint, so it can report the real server-side status:
+The admin list uses the same plugin endpoint, with the selected user:
 
 ```text
 GET /realms/{realm}/status-list/issued-credential-status?target_user={selectedUsername}
@@ -175,7 +160,7 @@ credential_id={issuedCredentialId}
 reason={userProvidedReason}
 ```
 
-After a successful response the frontend marks the credential `revoked` immediately in the list, so it stays visible and auditable.
+After a successful response, the frontend marks the credential immediately as `revoked` on the UI.
 
 ## Presentation Status Check
 

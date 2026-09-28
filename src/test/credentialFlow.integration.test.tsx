@@ -60,21 +60,16 @@ describe('issued credential flow through the real service', () => {
         });
       }
 
-      if (href.includes('/account/issued-verifiable-credentials')) {
-        return jsonResponse([
-          {
-            id: 'own-cred-1',
-            credentialType: 'DatevCompanyCredential',
-            issuedAt: 1788700000,
-            clientName: 'wallet-app',
-          },
-        ]);
-      }
-
       if (href.includes('/status-list/issued-credential-status')) {
         return jsonResponse({
           credentials: [
-            { credentialId: 'own-cred-1', status: revocationCompleted ? 'INVALID' : 'VALID' },
+            {
+              credentialId: 'own-cred-1',
+              credentialType: 'DatevCompanyCredential',
+              issuedAt: 1788700000,
+              clientName: 'wallet-app',
+              status: revocationCompleted ? 'INVALID' : 'VALID',
+            },
           ],
         });
       }
@@ -88,7 +83,7 @@ describe('issued credential flow through the real service', () => {
     });
   });
 
-  it('merges account metadata with plugin status and revokes through the status-list endpoint', async () => {
+  it('loads plugin metadata and status together and revokes through the status-list endpoint', async () => {
     const user = userEvent.setup();
 
     render(
@@ -125,6 +120,11 @@ describe('issued credential flow through the real service', () => {
     expect(body.get('mode')).toBe('issued_credential_revocation');
     expect(body.get('credential_id')).toBe('own-cred-1');
     expect(body.get('reason')).toBe('compromised');
+    expect(
+      fetchMock.mock.calls.some(([url]) =>
+        String(url).includes('/account/issued-verifiable-credentials')
+      )
+    ).toBe(false);
 
     await waitFor(() => {
       expect(

@@ -32,23 +32,19 @@ describe('mapPluginStatus', () => {
   });
 });
 
-describe('buildDisplayCredentials response merging', () => {
-  it('merges metadata and status by issued credential id', () => {
-    const display = buildDisplayCredentials(
-      [credential(), credential({ id: 'cred-2', credentialType: 'DatevCompanyCredential' })],
-      [
-        { credentialId: 'cred-1', status: 'VALID' },
-        { credentialId: 'cred-2', status: 'INVALID' },
-      ]
-    );
+describe('buildDisplayCredentials', () => {
+  it('uses the plugin status carried on each row', () => {
+    const display = buildDisplayCredentials([
+      credential({ serverStatus: 'VALID' }),
+      credential({
+        id: 'cred-2',
+        credentialType: 'DatevCompanyCredential',
+        serverStatus: 'INVALID',
+      }),
+    ]);
 
     expect(display).toHaveLength(2);
-    expect(display[0]).toMatchObject({
-      id: 'cred-1',
-      credentialType: 'IdentityCredential',
-      clientName: 'wallet-app',
-      status: 'active',
-    });
+    expect(display[0]).toMatchObject({ id: 'cred-1', status: 'active' });
     expect(display[1]).toMatchObject({
       id: 'cred-2',
       credentialType: 'DatevCompanyCredential',
@@ -57,58 +53,24 @@ describe('buildDisplayCredentials response merging', () => {
   });
 
   it('renders nothing for an empty server response', () => {
-    expect(buildDisplayCredentials([], [])).toEqual([]);
+    expect(buildDisplayCredentials([])).toEqual([]);
   });
 
-  it('does not display credentials missing from the account response', () => {
-    const display = buildDisplayCredentials(
-      [credential({ id: 'cred-2' })],
-      [
-        { credentialId: 'cred-1', status: 'INVALID' },
-        { credentialId: 'cred-2', status: 'VALID' },
-      ]
-    );
-
-    expect(display.map((entry) => entry.id)).toEqual(['cred-2']);
-  });
-
-  it('treats a missing plugin entry as unknown rather than valid', () => {
-    const display = buildDisplayCredentials(
-      [credential()],
-      [{ credentialId: 'other-cred', status: 'VALID' }]
-    );
+  it('treats a missing plugin status as unknown rather than valid', () => {
+    const display = buildDisplayCredentials([credential()]);
 
     expect(display[0].status).toBe('unknown');
+    expect(isRevocable(display[0].status)).toBe(false);
   });
 
-  it('shows UNKNOWN and SUSPENDED as non-revocable, including admin lists that only send serverStatus', () => {
-    const fromOverlay = buildDisplayCredentials(
-      [credential(), credential({ id: 'cred-2' })],
-      [
-        { credentialId: 'cred-1', status: 'UNKNOWN' },
-        { credentialId: 'cred-2', status: 'SUSPENDED' },
-      ]
-    );
-    const fromAdminList = buildDisplayCredentials([
+  it('shows UNKNOWN and SUSPENDED as non-revocable', () => {
+    const display = buildDisplayCredentials([
       credential({ serverStatus: 'UNKNOWN' }),
       credential({ id: 'cred-2', serverStatus: 'SUSPENDED' }),
     ]);
 
-    expect(fromOverlay.map((row) => row.status)).toEqual(['unknown', 'suspended']);
-    expect(fromAdminList.map((row) => row.status)).toEqual(['unknown', 'suspended']);
-    expect(fromAdminList.every((row) => !isRevocable(row.status))).toBe(true);
-  });
-});
-
-describe('fail-closed behaviour when the status endpoint is unreachable', () => {
-  it('renders metadata as unknown so revoke stays disabled', () => {
-    const display = buildDisplayCredentials([credential({ serverStatus: 'VALID' })], [], {
-      statusLookupFailed: true,
-    });
-
-    expect(display).toHaveLength(1);
-    expect(display[0].status).toBe('unknown');
-    expect(isRevocable(display[0].status)).toBe(false);
+    expect(display.map((row) => row.status)).toEqual(['unknown', 'suspended']);
+    expect(display.every((row) => !isRevocable(row.status))).toBe(true);
   });
 });
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import oid4vcService, { type IssuedCredentialStatusEntry } from '../services/oid4vc.service';
+import oid4vcService from '../services/oid4vc.service';
 import type { UserProfile } from '../types';
 import { CredentialOfferView } from './dashboard/CredentialOfferView';
 import { CredentialsView } from './dashboard/CredentialsView';
@@ -139,45 +139,13 @@ const Dashboard = () => {
     try {
       const targetUser = getActiveTargetUser();
 
-      if (targetUser) {
-        // Admin path: one plugin call already returns each credential with its status
-        // (VALID/INVALID/SUSPENDED/UNKNOWN). No separate account + status merge here.
-        const issuedCredentials = await oid4vcService.getIssuedCredentialsFor(targetUser, signal);
-        if (requestId !== credentialsRequestId.current) return;
-        setCredentials(buildDisplayCredentials(issuedCredentials));
-        return;
-      }
-
-      // Two requests run together: the account endpoint returns the credentials (the
-      // rows) and the status endpoint returns each credential's status (the badge).
-      // If the account request fails there is nothing to show, so the tab shows an
-      // error. If only the status request fails, the rows still show, but every badge
-      // reads Unknown and Revoke is disabled.
-      const [credentialsResult, statusesResult] = await Promise.allSettled([
-        oid4vcService.getIssuedCredentials(signal),
-        oid4vcService.getIssuedCredentialStatus(undefined, signal),
-      ]);
-
+      // One plugin call returns each credential with its metadata and status.
+      // The account endpoint is not used. A failed call leaves nothing to render.
+      const issuedCredentials = targetUser
+        ? await oid4vcService.getIssuedCredentialsFor(targetUser, signal)
+        : await oid4vcService.getIssuedCredentials(signal);
       if (requestId !== credentialsRequestId.current) return;
-
-      if (credentialsResult.status === 'rejected') {
-        // Re-throw into the outer catch: without metadata there is nothing to render.
-        throw credentialsResult.reason;
-      }
-
-      // Fail closed: do not render account metadata as Valid when status is unavailable.
-      const statusLookupFailed = statusesResult.status === 'rejected';
-      if (statusLookupFailed) {
-        console.warn('Failed to retrieve issued credential status', statusesResult.reason);
-      }
-      const serverStatuses: IssuedCredentialStatusEntry[] = statusLookupFailed
-        ? []
-        : statusesResult.value;
-      const issuedCredentials = credentialsResult.value;
-
-      setCredentials(
-        buildDisplayCredentials(issuedCredentials, serverStatuses, { statusLookupFailed })
-      );
+      setCredentials(buildDisplayCredentials(issuedCredentials));
     } catch (error) {
       if (requestId !== credentialsRequestId.current) return;
       console.error('Failed to retrieve issued credentials', error);
@@ -245,7 +213,6 @@ const Dashboard = () => {
     try {
       await oid4vcService.revokeIssuedCredential(credentialToRevoke.id, reason);
       // Optimistic UI: keep the row visible as Revoked without waiting for a refresh.
-      // Server status stays authoritative; nothing is written to localStorage.
       setCredentials((currentCredentials) =>
         currentCredentials.map((issuedCredential) =>
           issuedCredential.id === credentialToRevoke.id

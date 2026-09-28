@@ -128,15 +128,31 @@ describe('admin credential listing', () => {
     expect(credentials[1].serverStatus).toBe('SUSPENDED');
   });
 
-  it('loads the self-service list from the account endpoint without a target param', async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse([{ id: 'own-cred-1' }]));
+  it('loads the holder list from the status endpoint without a target param', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        credentials: [
+          {
+            credentialId: 'own-cred-1',
+            credentialType: 'DatevCompanyCredential',
+            clientName: 'wallet-app',
+            status: 'VALID',
+          },
+        ],
+      })
+    );
 
     const credentials = await oid4vcService.getIssuedCredentials();
 
     expect(fetchMock.mock.calls[0][0]).toBe(
-      'https://kc.test/realms/test-realm/account/issued-verifiable-credentials'
+      'https://kc.test/realms/test-realm/status-list/issued-credential-status'
     );
-    expect(credentials[0].id).toBe('own-cred-1');
+    expect(credentials[0]).toMatchObject({
+      id: 'own-cred-1',
+      credentialType: 'DatevCompanyCredential',
+      clientName: 'wallet-app',
+      serverStatus: 'VALID',
+    });
   });
 
   it('reads self-service live status from the plugin without target_user', async () => {

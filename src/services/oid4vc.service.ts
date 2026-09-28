@@ -43,7 +43,7 @@ interface IssuedCredentialStatusResponse {
 export interface IssuedCredentialStatusEntry {
   credentialId: string;
   verifiableCredentialId?: string;
-  /** Credential configuration/type (client-scope name), same value as the account endpoint. */
+  /** Credential configuration name. */
   credentialType?: string;
   issuedAt?: number;
   expiresAt?: number | null;
@@ -87,7 +87,6 @@ class Oid4vcService {
   private static readonly ENDPOINTS = {
     CREATE_CREDENTIAL_OFFER: '/protocol/oid4vc/create-credential-offer',
     CREDENTIAL_OFFER_URI: '/protocol/oid4vc/credential-offer-uri',
-    ISSUED_VERIFIABLE_CREDENTIALS: '/account/issued-verifiable-credentials',
     ISSUED_CREDENTIAL_STATUS: '/status-list/issued-credential-status',
     TOKEN_REVOCATION: '/status-list/revoke',
   };
@@ -401,18 +400,19 @@ class Oid4vcService {
     return this.buildOfferDeeplink(offer, offerUrl, 'json');
   }
 
+  /**
+   * Holder credential list. The status endpoint returns the metadata and the plugin
+   * status together, so the account endpoint is not called.
+   */
   async getIssuedCredentials(signal?: AbortSignal): Promise<IssuedVerifiableCredential[]> {
-    return this.getJsonResponse<IssuedVerifiableCredential[]>(
-      `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.ISSUED_VERIFIABLE_CREDENTIALS}`,
-      'Issued credentials lookup',
-      signal
-    );
+    const entries = await this.getIssuedCredentialStatus(undefined, signal);
+    return entries.map((entry) => this.toIssuedCredential(entry));
   }
 
   /**
    * Fetches issued-credential statuses from `/status-list/issued-credential-status`.
-   * - No argument: statuses for the authenticated bearer (self-service merge with account metadata).
-   * - With `targetUser`: statuses for that holder (admin list).
+   * - No argument: the authenticated bearer's credentials.
+   * - With `targetUser`: that holder's credentials (admin list).
    */
   async getIssuedCredentialStatus(
     targetUser?: string,
@@ -443,18 +443,21 @@ class Oid4vcService {
     signal?: AbortSignal
   ): Promise<IssuedVerifiableCredential[]> {
     const entries = await this.getIssuedCredentialStatus(targetUser, signal);
+    return entries.map((entry) => this.toIssuedCredential(entry));
+  }
 
-    return entries.map((credential) => ({
-      id: credential.credentialId,
-      credentialType: credential.credentialType,
-      issuedAt: credential.issuedAt,
-      expiresAt: credential.expiresAt ?? undefined,
-      clientId: credential.clientId,
-      clientName: credential.clientName,
-      revision: credential.revision,
-      serverStatus: credential.status,
-      revoked: credential.status === 'INVALID',
-    }));
+  private toIssuedCredential(entry: IssuedCredentialStatusEntry): IssuedVerifiableCredential {
+    return {
+      id: entry.credentialId,
+      credentialType: entry.credentialType,
+      issuedAt: entry.issuedAt,
+      expiresAt: entry.expiresAt ?? undefined,
+      clientId: entry.clientId,
+      clientName: entry.clientName,
+      revision: entry.revision,
+      serverStatus: entry.status,
+      revoked: entry.status === 'INVALID',
+    };
   }
 
   /**
