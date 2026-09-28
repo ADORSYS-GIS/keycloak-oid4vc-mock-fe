@@ -2,6 +2,8 @@
 
 This project is a React application that demonstrates how to integrate Keycloak for Single Sign-On (SSO) and interact with an OID4VC (OpenID for Verifiable Credentials) service. It provides a basic setup for user authentication and a protected dashboard page.
 
+![Credential Portal showing a credential offer QR code](docs/assets/credential-portal.png)
+
 ## Features
 
 - **User Authentication:** Login and logout functionality using Keycloak SSO.
@@ -22,7 +24,7 @@ These instructions will get you a copy of the project up and running on your loc
 
 - [Node.js](https://nodejs.org/) (v18 or higher recommended)
 - [npm](https://yarnpkg.com/) package manager
-- Keycloak 26.6 or later, with a configured realm and client. See [Keycloak compatibility](#keycloak-compatibility).
+- Keycloak 26.6 or later, with a configured realm and client. See [Compatibility](#compatibility).
 
 ### Installation
 
@@ -64,13 +66,30 @@ In the project directory, you can run:
 - `npm run lint`: Lints the codebase using ESLint.
 - `npm run preview`: Serves the production build locally for preview.
 
-## Keycloak compatibility
+## Compatibility
 
-Keycloak 26.6 and later is supported. The client creates the credential offer with `create-credential-offer`. When that endpoint is not available, it falls back to `credential-offer-uri`.
+This application has been tested with:
 
-Latest tested Keycloak version: `26.7.3`.
+| **Requirement** | **Version** |
+| --------------- | ----------- |
+| **Keycloak**    | 26.7.3      |
+| **keycloak-js** | ^26.2.1     |
 
-Login uses `keycloak-js` `^26.2.1`.
+While it may work with other versions, compatibility is not guaranteed. Ensure your environment matches the tested versions for best results.
+
+Keycloak 26.6 and later is supported. The client creates the credential offer with `create-credential-offer`, and falls back to `credential-offer-uri` when that endpoint is not available.
+
+## Versioning
+
+This project follows [Semantic Versioning](https://semver.org/). The current version is `0.1.0`, defined in `package.json`.
+
+Releases are identified by Git tags in the format `vX.Y.Z`, matching the version in `package.json`.
+
+To create a release:
+
+1. Bump the `version` field in `package.json`.
+2. Commit the version change.
+3. Tag that commit as `vX.Y.Z`.
 
 ## License
 
