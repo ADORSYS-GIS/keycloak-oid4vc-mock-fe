@@ -3,6 +3,7 @@ import QRCode from 'react-qr-code';
 import { Check, Copy, ExternalLink, KeyRound, RefreshCw, Zap } from 'lucide-react';
 import { ErrorState, LoadingState, PrimaryButton, WarningState } from './States';
 import { IS_PRE_AUTHORIZED_FLOW, type IssuedCredentialLimit } from '../../services/oid4vc.service';
+import { formatIssuanceLimitWarning } from './credentialViewState';
 
 type OfferMode = 'value' | 'reference';
 
@@ -98,9 +99,7 @@ export function CredentialOfferView({
         {/* An offer error replaces the QR area, so hide the advisory banner with it. */}
         {!error && limitWarning && (
           <div style={{ marginBottom: '28px' }}>
-            <WarningState
-              message={`You have reached the issuance limit for this credential type (${limitWarning.activeCount} of ${limitWarning.max} issued). Revoking a credential frees a slot and clears this warning.`}
-            />
+            <WarningState message={formatIssuanceLimitWarning(limitWarning)} />
           </div>
         )}
 
