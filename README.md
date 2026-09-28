@@ -66,12 +66,15 @@ In the project directory, you can run:
 
 ## Versioning
 
-This project uses [Semantic Versioning](https://semver.org/). The current version is `0.1.0`, kept in `package.json`.
+This project follows [Semantic Versioning](https://semver.org/). The current version is `0.1.0`, defined in `package.json`.
 
-Releases are git tags named `vX.Y.Z` and match that version. To cut a release:
+Releases are identified by Git tags in the format `vX.Y.Z`, matching the version in `package.json`.
 
-1. Bump `version` in `package.json`.
-2. Tag the release commit as `vX.Y.Z`.
+To create a release:
+
+1. Bump the `version` field in `package.json`.
+2. Commit the version change.
+3. Tag that commit as `vX.Y.Z`.
 
 ## License
 
