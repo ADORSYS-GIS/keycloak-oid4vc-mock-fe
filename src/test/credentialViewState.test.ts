@@ -1,8 +1,8 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   buildDisplayCredentials,
   mapPluginStatus,
-  rememberRevokedCredential,
+  purgeLegacyCredentialViewState,
 } from '../components/dashboard/credentialViewState';
 import { isRevocable } from '../components/dashboard/types';
 import type { IssuedVerifiableCredential } from '../services/oid4vc.service';
@@ -13,15 +13,13 @@ const credential = (
   id: 'cred-1',
   credentialType: 'IdentityCredential',
   issuedAt: 1788700000,
+  revision: '1',
+  clientName: 'wallet-app',
   ...overrides,
 });
 
-beforeEach(() => {
-  window.localStorage.clear();
-});
-
 describe('mapPluginStatus', () => {
-  it('maps each plugin status onto a distinct UI state; only VALID is revocable', () => {
+  it('maps each plugin status; only VALID is revocable', () => {
     expect(mapPluginStatus('VALID')).toBe('active');
     expect(mapPluginStatus('INVALID')).toBe('revoked');
     expect(mapPluginStatus('SUSPENDED')).toBe('suspended');
@@ -34,86 +32,95 @@ describe('mapPluginStatus', () => {
   });
 });
 
-describe('buildDisplayCredentials server status hydration', () => {
-  it('marks a credential revoked when the plugin reports INVALID', () => {
-    const display = buildDisplayCredentials([credential()], 'francis', [
-      { credentialId: 'cred-1', status: 'INVALID' },
-    ]);
+describe('buildDisplayCredentials response merging', () => {
+  it('merges metadata and status by issued credential id', () => {
+    const display = buildDisplayCredentials(
+      [credential(), credential({ id: 'cred-2', credentialType: 'DatevCompanyCredential' })],
+      [
+        { credentialId: 'cred-1', status: 'VALID' },
+        { credentialId: 'cred-2', status: 'INVALID' },
+      ]
+    );
 
-    expect(display[0].status).toBe('revoked');
+    expect(display).toHaveLength(2);
+    expect(display[0]).toMatchObject({
+      id: 'cred-1',
+      credentialType: 'IdentityCredential',
+      clientName: 'wallet-app',
+      status: 'active',
+    });
+    expect(display[1]).toMatchObject({
+      id: 'cred-2',
+      credentialType: 'DatevCompanyCredential',
+      status: 'revoked',
+    });
   });
 
-  it('keeps a credential active when the plugin reports VALID', () => {
-    const display = buildDisplayCredentials([credential()], 'francis', [
-      { credentialId: 'cred-1', status: 'VALID' },
-    ]);
+  it('renders nothing for an empty server response', () => {
+    expect(buildDisplayCredentials([], [])).toEqual([]);
+  });
 
-    expect(display[0].status).toBe('active');
+  it('does not display credentials missing from the account response', () => {
+    const display = buildDisplayCredentials(
+      [credential({ id: 'cred-2' })],
+      [
+        { credentialId: 'cred-1', status: 'INVALID' },
+        { credentialId: 'cred-2', status: 'VALID' },
+      ]
+    );
+
+    expect(display.map((entry) => entry.id)).toEqual(['cred-2']);
+  });
+
+  it('treats a missing plugin entry as unknown rather than valid', () => {
+    const display = buildDisplayCredentials(
+      [credential()],
+      [{ credentialId: 'other-cred', status: 'VALID' }]
+    );
+
+    expect(display[0].status).toBe('unknown');
   });
 
   it('shows UNKNOWN and SUSPENDED as non-revocable, including admin lists that only send serverStatus', () => {
     const fromOverlay = buildDisplayCredentials(
       [credential(), credential({ id: 'cred-2' })],
-      'francis',
       [
         { credentialId: 'cred-1', status: 'UNKNOWN' },
         { credentialId: 'cred-2', status: 'SUSPENDED' },
       ]
     );
-    const fromAdminList = buildDisplayCredentials(
-      [
-        credential({ serverStatus: 'UNKNOWN' }),
-        credential({ id: 'cred-2', serverStatus: 'SUSPENDED' }),
-      ],
-      'francis'
-    );
+    const fromAdminList = buildDisplayCredentials([
+      credential({ serverStatus: 'UNKNOWN' }),
+      credential({ id: 'cred-2', serverStatus: 'SUSPENDED' }),
+    ]);
 
     expect(fromOverlay.map((row) => row.status)).toEqual(['unknown', 'suspended']);
     expect(fromAdminList.map((row) => row.status)).toEqual(['unknown', 'suspended']);
-  });
-
-  it('keeps a locally remembered revocation when the plugin reports UNKNOWN', () => {
-    rememberRevokedCredential('francis', credential());
-    const display = buildDisplayCredentials([credential()], 'francis', [
-      { credentialId: 'cred-1', status: 'UNKNOWN' },
-    ]);
-
-    expect(display[0].status).toBe('revoked');
-  });
-
-  it('keeps the locally remembered revocation when the plugin reports VALID again', () => {
-    rememberRevokedCredential('francis', credential());
-    const display = buildDisplayCredentials([credential()], 'francis', [
-      { credentialId: 'cred-1', status: 'VALID' },
-    ]);
-
-    expect(display[0].status).toBe('revoked');
-  });
-
-  it('pins the server INVALID verdict over a locally remembered active state', () => {
-    const display = buildDisplayCredentials([credential()], 'francis', [
-      { credentialId: 'cred-1', status: 'INVALID' },
-    ]);
-
-    expect(display[0].status).toBe('revoked');
-  });
-
-  it('keeps locally revoked credentials visible when absent from the server list', () => {
-    rememberRevokedCredential('francis', credential({ id: 'locally-revoked' }));
-    const display = buildDisplayCredentials([credential({ id: 'cred-2' })], 'francis', []);
-
-    expect(display).toHaveLength(2);
-    expect(display.map((entry) => entry.status)).toContain('revoked');
+    expect(fromAdminList.every((row) => !isRevocable(row.status))).toBe(true);
   });
 });
 
 describe('fail-closed behaviour when the status endpoint is unreachable', () => {
   it('renders metadata as unknown so revoke stays disabled', () => {
-    const display = buildDisplayCredentials([credential()], 'francis', [], {
+    const display = buildDisplayCredentials([credential({ serverStatus: 'VALID' })], [], {
       statusLookupFailed: true,
     });
 
     expect(display).toHaveLength(1);
     expect(display[0].status).toBe('unknown');
+    expect(isRevocable(display[0].status)).toBe(false);
+  });
+});
+
+describe('purgeLegacyCredentialViewState', () => {
+  it('removes the legacy localStorage key from previous builds', () => {
+    window.localStorage.setItem(
+      'oid4vc-issued-credential-view-state',
+      JSON.stringify({ francis: { revokedCredentials: { 'cred-1': { id: 'cred-1' } } } })
+    );
+
+    purgeLegacyCredentialViewState();
+
+    expect(window.localStorage.getItem('oid4vc-issued-credential-view-state')).toBeNull();
   });
 });

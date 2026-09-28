@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import oid4vcService, { type IssuedCredentialStatusEntry } from '../services/oid4vc.service';
+import type { UserProfile } from '../types';
 import { CredentialOfferView } from './dashboard/CredentialOfferView';
 import { CredentialsView } from './dashboard/CredentialsView';
 import { DashboardHeader } from './dashboard/DashboardHeader';
@@ -8,11 +9,9 @@ import { DashboardTabs } from './dashboard/DashboardTabs';
 import { RevocationDialog } from './dashboard/RevocationDialog';
 import {
   buildDisplayCredentials,
-  getCredentialViewOwner,
-  rememberRevokedCredential,
+  purgeLegacyCredentialViewState,
 } from './dashboard/credentialViewState';
 import { isRevocable, type DashboardTab, type DisplayIssuedCredential } from './dashboard/types';
-import type { UserProfile } from '../types';
 
 // Dropdown labels read "First Last (username)"; users without a stored name fall
 // back to their bare username.
@@ -23,7 +22,6 @@ const formatUserLabel = (user: UserProfile): string => {
 
 const Dashboard = () => {
   const { userProfile, logout, hasRole } = useAuth();
-  const credentialViewOwner = getCredentialViewOwner(userProfile);
   const isAdmin = hasRole('credential-offer-create');
   // Applied admin target ('' = current user). Only set by the admin target selector.
   const [adminTargetUser, setAdminTargetUser] = useState('');
@@ -45,6 +43,15 @@ const Dashboard = () => {
   const [revocationReason, setRevocationReason] = useState('');
   const [revocationReasonError, setRevocationReasonError] = useState<string | null>(null);
   const [importantNotesExpanded, setImportantNotesExpanded] = useState(true);
+  // Guards against out-of-order responses when the admin target changes, or a newer
+  // load starts, while a request is still in flight. Only the latest request may update state.
+  const offerRequestId = useRef(0);
+  const credentialsRequestId = useRef(0);
+
+  // Previous builds persisted revoked credentials in localStorage; purge once on mount.
+  useEffect(() => {
+    purgeLegacyCredentialViewState();
+  }, []);
 
   const getActiveTargetUser = useCallback((): string | undefined => {
     // applyAdminTarget trims on write, so the stored value needs no re-trim here.
@@ -83,13 +90,8 @@ const Dashboard = () => {
     };
   }, [isAdmin]);
 
-  // Guards against out-of-order responses when the admin target changes while a
-  // request is still in flight: only the latest request may update state.
-  const offerRequestIdRef = useRef(0);
-  const credentialsRequestIdRef = useRef(0);
-
   const prepareQr = useCallback(async () => {
-    const requestId = ++offerRequestIdRef.current;
+    const requestId = ++offerRequestId.current;
     setIsLoading(true);
     setError(null);
 
@@ -100,61 +102,74 @@ const Dashboard = () => {
         oid4vcService.getCredentialOfferDeeplink(false, undefined, targetUser),
       ]);
 
-      if (requestId !== offerRequestIdRef.current) return; // stale: a newer request owns the offer state
+      if (requestId !== offerRequestId.current) return;
       setOfferDeeplink(offerLink);
       setOfferDeeplinkVal(offerLinkVal);
     } catch (error) {
-      if (requestId !== offerRequestIdRef.current) return;
+      if (requestId !== offerRequestId.current) return;
       console.error('Failed to retrieve credential offer', error);
       setError('Failed to retrieve credential offer. Please try again.');
     } finally {
-      if (requestId === offerRequestIdRef.current) setIsLoading(false);
+      if (requestId === offerRequestId.current) setIsLoading(false);
     }
   }, [getActiveTargetUser]);
 
   const loadIssuedCredentials = useCallback(async () => {
-    const requestId = ++credentialsRequestIdRef.current;
+    // Each load gets an id. Only the latest id may update the list, the error, or the loading flag.
+    const requestId = ++credentialsRequestId.current;
     setCredentialsLoading(true);
     setCredentialsError(null);
 
     try {
       const targetUser = getActiveTargetUser();
-      const viewOwner = targetUser || credentialViewOwner;
 
       if (targetUser) {
         // Admin path: one plugin call already returns each credential with its status
         // (VALID/INVALID/SUSPENDED/UNKNOWN). No separate account + status merge here.
         const issuedCredentials = await oid4vcService.getIssuedCredentialsFor(targetUser);
-        if (requestId !== credentialsRequestIdRef.current) return;
-        setCredentials(buildDisplayCredentials(issuedCredentials, viewOwner));
+        if (requestId !== credentialsRequestId.current) return;
+        setCredentials(buildDisplayCredentials(issuedCredentials));
         return;
       }
 
-      const issuedCredentials = await oid4vcService.getIssuedCredentials();
-      let serverStatuses: IssuedCredentialStatusEntry[] = [];
-      let statusLookupFailed = false;
-      try {
-        serverStatuses = await oid4vcService.getIssuedCredentialStatus();
-      } catch (error) {
-        // Fail closed on status errors: show Unknown and disable Revoke.
-        // Returning [] here used to leave account rows looking Valid and actionable.
-        console.warn('Failed to retrieve issued credential status', error);
-        statusLookupFailed = true;
+      // The account call supplies the rows. The status call supplies each badge. They are merged by credential id.
+      // Both run together. allSettled is used because a failed account call hides the list,
+      // while a failed status call still shows the rows as Unknown.
+      const [credentialsResult, statusesResult] = await Promise.allSettled([
+        oid4vcService.getIssuedCredentials(),
+        oid4vcService.getIssuedCredentialStatus(),
+      ]);
+
+      if (requestId !== credentialsRequestId.current) return;
+
+      if (credentialsResult.status === 'rejected') {
+        // Re-throw into the outer catch: without metadata there is nothing to render.
+        throw credentialsResult.reason;
       }
-      if (requestId !== credentialsRequestIdRef.current) return;
+
+      // Fail closed: do not render account metadata as Valid when status is unavailable.
+      const statusLookupFailed = statusesResult.status === 'rejected';
+      if (statusLookupFailed) {
+        console.warn('Failed to retrieve issued credential status', statusesResult.reason);
+      }
+      const serverStatuses: IssuedCredentialStatusEntry[] = statusLookupFailed
+        ? []
+        : statusesResult.value;
+      const issuedCredentials = credentialsResult.value;
+
       setCredentials(
-        buildDisplayCredentials(issuedCredentials, viewOwner, serverStatuses, {
-          statusLookupFailed,
-        })
+        buildDisplayCredentials(issuedCredentials, serverStatuses, { statusLookupFailed })
       );
     } catch (error) {
-      if (requestId !== credentialsRequestIdRef.current) return;
+      if (requestId !== credentialsRequestId.current) return;
       console.error('Failed to retrieve issued credentials', error);
       setCredentialsError('Failed to retrieve issued credentials. Please try again.');
     } finally {
-      if (requestId === credentialsRequestIdRef.current) setCredentialsLoading(false);
+      if (requestId === credentialsRequestId.current) {
+        setCredentialsLoading(false);
+      }
     }
-  }, [credentialViewOwner, getActiveTargetUser]);
+  }, [getActiveTargetUser]);
 
   useEffect(() => {
     prepareQr();
@@ -190,8 +205,7 @@ const Dashboard = () => {
   };
 
   const closeRevocationDialog = () => {
-    // Used as the Cancel handler. While revokingCredentialId is set, ignore cancel so
-    // a mid-flight revoke cannot lose dialog state; success uses resetRevocationDialog().
+    // Cancel must not clear dialog state while a revoke request is in flight.
     if (revokingCredentialId) return;
     resetRevocationDialog();
   };
@@ -211,11 +225,9 @@ const Dashboard = () => {
     setRevocationReasonError(null);
 
     try {
-      const targetUser = getActiveTargetUser();
-      const viewOwner = targetUser || credentialViewOwner;
       await oid4vcService.revokeIssuedCredential(credentialToRevoke.id, reason);
-      rememberRevokedCredential(viewOwner, credentialToRevoke);
       // Optimistic UI: keep the row visible as Revoked without waiting for a refresh.
+      // Server status stays authoritative; nothing is written to localStorage.
       setCredentials((currentCredentials) =>
         currentCredentials.map((issuedCredential) =>
           issuedCredential.id === credentialToRevoke.id

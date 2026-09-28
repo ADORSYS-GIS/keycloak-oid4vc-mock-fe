@@ -83,7 +83,7 @@ The response is displayed in the `Credentials` tab. The UI uses the credential `
 - wallet client;
 - status.
 
-The account endpoint does not carry revocation status, so the dashboard also fetches the token status plugin's view and merges it in:
+The account endpoint does not carry revocation status, so the dashboard also fetches the token status plugin's view and merges it by issued credential id:
 
 ```text
 GET /realms/{realm}/status-list/issued-credential-status
@@ -101,6 +101,8 @@ Without a `target_user` parameter the plugin resolves the caller from the bearer
 
 A missing mapping or a failed plugin call must not render as Valid: revocation would 404, and a revoked credential could look actionable.
 
+Only credentials returned by the account endpoint are rendered. Credentials missing from that response are not shown. No credential status is stored in `localStorage`; a one-time purge removes any legacy browser state from previous builds. After a successful revoke the UI marks the row `revoked` immediately; a refresh reloads the authoritative plugin status (including revokes performed in another client).
+
 ### Revoke Issued Credential
 
 ```text
@@ -116,7 +118,7 @@ credential_id={issuedCredentialId}
 reason={userProvidedReason}
 ```
 
-After a successful response, the frontend marks the credential as `revoked` locally and keeps it visible. This is intentional: a revoked credential should remain auditable in the UI instead of disappearing from the list.
+After a successful response, the frontend marks the credential as `revoked` in memory and keeps it visible. This is intentional: a revoked credential should remain auditable in the UI instead of disappearing from the list. Nothing is written to `localStorage`.
 
 ## Sequence Diagram
 
