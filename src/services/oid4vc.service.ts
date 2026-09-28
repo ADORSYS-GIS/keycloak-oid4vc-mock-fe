@@ -114,9 +114,12 @@ class Oid4vcService {
     };
   }
 
-  private async getJsonResponse<T>(url: string, context: string): Promise<T> {
+  private async getJsonResponse<T>(url: string, context: string, signal?: AbortSignal): Promise<T> {
     const headers = await this.getAuthHeaders();
-    const response = await fetch(url, { headers });
+    // An optional signal cancels the request while it is still running. The dashboard
+    // passes one when a newer credential load starts, so the older load stops instead of
+    // finishing and overwriting newer data.
+    const response = await fetch(url, { headers, signal });
 
     if (!response.ok) {
       throw new Error(`${context} failed: ${await this.getResponseError(response)}`);
@@ -398,10 +401,11 @@ class Oid4vcService {
     return this.buildOfferDeeplink(offer, offerUrl, 'json');
   }
 
-  async getIssuedCredentials(): Promise<IssuedVerifiableCredential[]> {
+  async getIssuedCredentials(signal?: AbortSignal): Promise<IssuedVerifiableCredential[]> {
     return this.getJsonResponse<IssuedVerifiableCredential[]>(
       `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.ISSUED_VERIFIABLE_CREDENTIALS}`,
-      'Issued credentials lookup'
+      'Issued credentials lookup',
+      signal
     );
   }
 
@@ -410,12 +414,16 @@ class Oid4vcService {
    * - No argument: statuses for the authenticated bearer (self-service merge with account metadata).
    * - With `targetUser`: statuses for that holder (admin list).
    */
-  async getIssuedCredentialStatus(targetUser?: string): Promise<IssuedCredentialStatusEntry[]> {
+  async getIssuedCredentialStatus(
+    targetUser?: string,
+    signal?: AbortSignal
+  ): Promise<IssuedCredentialStatusEntry[]> {
     const queryString = this.buildQueryString({ target_user: targetUser });
     const suffix = queryString ? `?${queryString}` : '';
     const response = await this.getJsonResponse<IssuedCredentialStatusResponse>(
       `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.ISSUED_CREDENTIAL_STATUS}${suffix}`,
-      'Issued credential status lookup'
+      'Issued credential status lookup',
+      signal
     );
 
     return response.credentials;
@@ -430,8 +438,11 @@ class Oid4vcService {
    * `revoked` would make UNKNOWN and SUSPENDED look Valid in the UI, and revoke would
    * then 404 when no status-list mapping exists.
    */
-  async getIssuedCredentialsFor(targetUser: string): Promise<IssuedVerifiableCredential[]> {
-    const entries = await this.getIssuedCredentialStatus(targetUser);
+  async getIssuedCredentialsFor(
+    targetUser: string,
+    signal?: AbortSignal
+  ): Promise<IssuedVerifiableCredential[]> {
+    const entries = await this.getIssuedCredentialStatus(targetUser, signal);
 
     return entries.map((credential) => ({
       id: credential.credentialId,

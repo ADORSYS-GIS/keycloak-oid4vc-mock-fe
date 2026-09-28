@@ -127,8 +127,13 @@ describe('admin listing and revocation', () => {
 
     expect(await screen.findByText('chidi-cred-1')).toBeInTheDocument();
     expect(screen.getByText('Valid')).toBeInTheDocument();
-    expect(getIssuedCredentialsFor).toHaveBeenCalledWith('chidi');
+    expect(getIssuedCredentialsFor).toHaveBeenCalledWith('chidi', expect.any(AbortSignal));
     expect(getIssuedCredentialsFor).toHaveBeenCalledTimes(1);
+    revokeIssuedCredential.mockImplementation(async () => {
+      getIssuedCredentialsFor.mockResolvedValue([
+        { ...chidiCredential, serverStatus: 'INVALID', revoked: true },
+      ]);
+    });
 
     await user.click(screen.getByRole('button', { name: 'Revoke' }));
     const dialog = within(await screen.findByRole('dialog'));
@@ -140,6 +145,8 @@ describe('admin listing and revocation', () => {
     expect(screen.getByText('chidi-cred-1')).toBeInTheDocument();
     expect(revokeIssuedCredential).toHaveBeenCalledTimes(1);
     expect(revokeIssuedCredential).toHaveBeenCalledWith('chidi-cred-1', 'compromised');
+    await waitFor(() => expect(getIssuedCredentialsFor).toHaveBeenCalledTimes(2));
+    expect(screen.getByText('Revoked')).toBeInTheDocument();
   });
 
   it('shows an error when the admin credential list request fails', async () => {
@@ -297,6 +304,13 @@ describe('server-authoritative credential list', () => {
       { id: 'own-cred-1', credentialType: 'IdentityCredential', issuedAt: 1788700000 },
     ]);
     getIssuedCredentialStatus.mockResolvedValue([{ credentialId: 'own-cred-1', status: 'VALID' }]);
+    // The plugin answers INVALID after a successful revoke. The reload that follows
+    // the revoke reads this value instead of the stale VALID one.
+    revokeIssuedCredential.mockImplementation(async () => {
+      getIssuedCredentialStatus.mockResolvedValue([
+        { credentialId: 'own-cred-1', status: 'INVALID' },
+      ]);
+    });
     const user = userEvent.setup();
 
     renderDashboard(false);
@@ -311,7 +325,35 @@ describe('server-authoritative credential list', () => {
     expect(await screen.findByText('Revoked')).toBeInTheDocument();
     expect(screen.getByText('own-cred-1')).toBeInTheDocument();
     expect(revokeIssuedCredential).toHaveBeenCalledWith('own-cred-1', 'compromised');
+    await waitFor(() => expect(getIssuedCredentials).toHaveBeenCalledTimes(2));
+    expect(screen.getByText('Revoked')).toBeInTheDocument();
     expect(window.localStorage.length).toBe(0);
+  });
+
+  it('aborts the in-flight requests of a load that gets superseded', async () => {
+    const observedSignals: AbortSignal[] = [];
+    getIssuedCredentials.mockImplementation((signal?: AbortSignal) => {
+      observedSignals.push(signal as AbortSignal);
+      return new Promise(() => {});
+    });
+    getIssuedCredentialStatus.mockImplementation((_targetUser?: string, signal?: AbortSignal) => {
+      observedSignals.push(signal as AbortSignal);
+      return new Promise(() => {});
+    });
+    const user = userEvent.setup();
+
+    renderDashboard(false);
+    await user.click(await screen.findByRole('button', { name: 'Credentials' }));
+    await screen.findByText('Loading issued credentials...');
+
+    await user.click(screen.getByRole('button', { name: 'Credential Offer' }));
+    await user.click(screen.getByRole('button', { name: 'Credentials' }));
+
+    expect(observedSignals).toHaveLength(4);
+    expect(observedSignals[0]).toBe(observedSignals[1]);
+    expect(observedSignals[2]).toBe(observedSignals[3]);
+    expect(observedSignals[0].aborted).toBe(true);
+    expect(observedSignals[2].aborted).toBe(false);
   });
 
   it('does not send a revocation when the reason is only whitespace', async () => {

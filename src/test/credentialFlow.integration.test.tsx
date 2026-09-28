@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Dashboard from '../components/Dashboard';
@@ -14,6 +14,10 @@ vi.mock('../config/keycloak.config', () => ({
 }));
 
 const fetchMock = vi.fn();
+
+// After revoke succeeds, the status endpoint answers INVALID so the reload that
+// follows the revoke sees the credential as revoked.
+let revocationCompleted = false;
 
 const jsonResponse = (body: unknown, ok = true, statusText = 'OK') => ({
   ok,
@@ -37,6 +41,7 @@ describe('issued credential flow through the real service', () => {
     vi.stubEnv('VITE_KEYCLOAK_REALM', 'test-realm');
     vi.stubGlobal('fetch', fetchMock);
     fetchMock.mockReset();
+    revocationCompleted = false;
     window.localStorage.clear();
 
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
@@ -68,11 +73,14 @@ describe('issued credential flow through the real service', () => {
 
       if (href.includes('/status-list/issued-credential-status')) {
         return jsonResponse({
-          credentials: [{ credentialId: 'own-cred-1', status: 'VALID' }],
+          credentials: [
+            { credentialId: 'own-cred-1', status: revocationCompleted ? 'INVALID' : 'VALID' },
+          ],
         });
       }
 
       if (href.includes('/status-list/revoke')) {
+        revocationCompleted = true;
         return jsonResponse({ success: true });
       }
 
@@ -117,5 +125,14 @@ describe('issued credential flow through the real service', () => {
     expect(body.get('mode')).toBe('issued_credential_revocation');
     expect(body.get('credential_id')).toBe('own-cred-1');
     expect(body.get('reason')).toBe('compromised');
+
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.filter(([url]) =>
+          String(url).includes('/status-list/issued-credential-status')
+        )
+      ).toHaveLength(2);
+    });
+    expect(screen.getByText('Revoked')).toBeInTheDocument();
   });
 });

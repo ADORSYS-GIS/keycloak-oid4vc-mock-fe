@@ -101,7 +101,7 @@ Without a `target_user` parameter the plugin resolves the caller from the bearer
 
 A missing mapping or a failed plugin call must not render as Valid: revocation would 404, and a revoked credential could look actionable.
 
-Only credentials returned by the account endpoint are rendered. Credentials missing from that response are not shown. No credential status is stored in `localStorage`; a one-time purge removes any legacy browser state from previous builds. After a successful revoke the UI marks the row `revoked` immediately; a refresh reloads the authoritative plugin status (including revokes performed in another client).
+Only credentials returned by the account endpoint are rendered. Credentials missing from that response are not shown. No credential status is stored in `localStorage`; a one-time purge removes any legacy browser state from previous builds. After a successful revoke the UI marks the row `revoked` immediately and reloads the authoritative plugin status (including revokes performed in another client); superseded loads are aborted so a stale response can never overwrite newer data.
 
 ### Revoke Issued Credential
 

@@ -46,9 +46,15 @@ const Dashboard = () => {
   // Guards against out-of-order responses when the admin target changes, or a newer
   // load starts, while a request is still in flight. Only the latest request may update state.
   const offerRequestId = useRef(0);
+  // Every credential load is numbered, and only the newest number may update the screen.
+  // Each load's requests also share an AbortController, so an older load is cancelled
+  // the moment a newer one starts — a load that started before a revocation must not
+  // finish afterwards and mark the just-revoked credential Valid again.
   const credentialsRequestId = useRef(0);
+  const credentialsAbortRef = useRef<AbortController | null>(null);
 
-  // Previous builds persisted revoked credentials in localStorage; purge once on mount.
+  // Older versions of this app saved revoked credentials in localStorage; delete that
+  // leftover data once when the dashboard loads.
   useEffect(() => {
     purgeLegacyCredentialViewState();
   }, []);
@@ -114,9 +120,19 @@ const Dashboard = () => {
     }
   }, [getActiveTargetUser]);
 
+  // Cancels any credential load that is still running, then hands out the number and
+  // cancellation signal the next load will use.
+  const beginCredentialsLoad = useCallback((): { requestId: number; signal: AbortSignal } => {
+    credentialsAbortRef.current?.abort();
+    const abortController = new AbortController();
+    credentialsAbortRef.current = abortController;
+    return { requestId: ++credentialsRequestId.current, signal: abortController.signal };
+  }, []);
+
   const loadIssuedCredentials = useCallback(async () => {
-    // Each load gets an id. Only the latest id may update the list, the error, or the loading flag.
-    const requestId = ++credentialsRequestId.current;
+    // Cancel any load still running, then number this one. From here on, only this
+    // newest load is allowed to update the list, the error message, or the spinner.
+    const { requestId, signal } = beginCredentialsLoad();
     setCredentialsLoading(true);
     setCredentialsError(null);
 
@@ -126,18 +142,20 @@ const Dashboard = () => {
       if (targetUser) {
         // Admin path: one plugin call already returns each credential with its status
         // (VALID/INVALID/SUSPENDED/UNKNOWN). No separate account + status merge here.
-        const issuedCredentials = await oid4vcService.getIssuedCredentialsFor(targetUser);
+        const issuedCredentials = await oid4vcService.getIssuedCredentialsFor(targetUser, signal);
         if (requestId !== credentialsRequestId.current) return;
         setCredentials(buildDisplayCredentials(issuedCredentials));
         return;
       }
 
-      // The account call supplies the rows. The status call supplies each badge. They are merged by credential id.
-      // Both run together. allSettled is used because a failed account call hides the list,
-      // while a failed status call still shows the rows as Unknown.
+      // Two requests run together: the account endpoint returns the credentials (the
+      // rows) and the status endpoint returns each credential's status (the badge).
+      // If the account request fails there is nothing to show, so the tab shows an
+      // error. If only the status request fails, the rows still show, but every badge
+      // reads Unknown and Revoke is disabled.
       const [credentialsResult, statusesResult] = await Promise.allSettled([
-        oid4vcService.getIssuedCredentials(),
-        oid4vcService.getIssuedCredentialStatus(),
+        oid4vcService.getIssuedCredentials(signal),
+        oid4vcService.getIssuedCredentialStatus(undefined, signal),
       ]);
 
       if (requestId !== credentialsRequestId.current) return;
@@ -169,7 +187,7 @@ const Dashboard = () => {
         setCredentialsLoading(false);
       }
     }
-  }, [getActiveTargetUser]);
+  }, [beginCredentialsLoad, getActiveTargetUser]);
 
   useEffect(() => {
     prepareQr();
@@ -241,6 +259,10 @@ const Dashboard = () => {
         )
       );
       resetRevocationDialog();
+      // Reload the list from the server. The reload replaces the temporary Revoked badge
+      // with what the server now says, and cancels any older load still running so it
+      // cannot mark the credential Valid again.
+      void loadIssuedCredentials();
     } catch (error) {
       console.error('Failed to revoke issued credential', error);
       setCredentialsError('Failed to revoke issued credential. Please try again.');
