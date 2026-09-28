@@ -22,7 +22,7 @@ These instructions will get you a copy of the project up and running on your loc
 
 - [Node.js](https://nodejs.org/) (v18 or higher recommended)
 - [npm](https://yarnpkg.com/) package manager
-- A running Keycloak instance with a configured realm and client.
+- Keycloak 26.6 or later, with a configured realm and client. See [Keycloak compatibility](#keycloak-compatibility).
 
 ### Installation
 
@@ -63,6 +63,14 @@ In the project directory, you can run:
 - `npm run build`: Builds the app for production to the `dist` folder.
 - `npm run lint`: Lints the codebase using ESLint.
 - `npm run preview`: Serves the production build locally for preview.
+
+## Keycloak compatibility
+
+Keycloak 26.6 and later is supported. The client creates the credential offer with `create-credential-offer`. When that endpoint is not available, it falls back to `credential-offer-uri`.
+
+Latest tested Keycloak version: `26.7.3`.
+
+Login uses `keycloak-js` `^26.2.1`.
 
 ## License
 
