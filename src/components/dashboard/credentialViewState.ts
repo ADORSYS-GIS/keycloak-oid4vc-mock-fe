@@ -1,4 +1,5 @@
 import type {
+  IssuedCredentialLimit,
   IssuedCredentialStatusEntry,
   IssuedVerifiableCredential,
 } from '../../services/oid4vc.service';
@@ -114,6 +115,29 @@ export function rememberRevokedCredential(owner: string, credential: IssuedVerif
       [credential.id]: credential,
     },
   });
+}
+
+/**
+ * Returns the limit entry for the credential type when its quota is exhausted
+ * (`remaining` is 0 or less), or `null` when no warning should be shown.
+ *
+ * An absent or empty `limits` payload (unlimited credential types, or plugins
+ * that do not expose limits yet) always yields `null` — the dashboard must
+ * behave exactly as before in that case.
+ */
+export function getCredentialLimitWarning(
+  limits: IssuedCredentialLimit[],
+  credentialConfigurationId: string
+): IssuedCredentialLimit | null {
+  const limit = limits.find(
+    (entry) => entry.credentialConfigurationId === credentialConfigurationId
+  );
+
+  if (!limit || !Number.isFinite(limit.max) || limit.max <= 0) {
+    return null;
+  }
+
+  return limit.remaining <= 0 ? limit : null;
 }
 
 function toDisplayCredential(

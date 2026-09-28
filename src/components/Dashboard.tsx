@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import oid4vcService, { type IssuedCredentialStatusEntry } from '../services/oid4vc.service';
+import oid4vcService, {
+  DEFAULT_CREDENTIAL_CONFIGURATION_ID,
+  type IssuedCredentialLimit,
+  type IssuedCredentialStatusEntry,
+} from '../services/oid4vc.service';
 import { CredentialOfferView } from './dashboard/CredentialOfferView';
 import { CredentialsView } from './dashboard/CredentialsView';
 import { DashboardHeader } from './dashboard/DashboardHeader';
@@ -8,6 +12,7 @@ import { DashboardTabs } from './dashboard/DashboardTabs';
 import { RevocationDialog } from './dashboard/RevocationDialog';
 import {
   buildDisplayCredentials,
+  getCredentialLimitWarning,
   getCredentialViewOwner,
   rememberRevokedCredential,
 } from './dashboard/credentialViewState';
@@ -45,6 +50,7 @@ const Dashboard = () => {
   const [revocationReason, setRevocationReason] = useState('');
   const [revocationReasonError, setRevocationReasonError] = useState<string | null>(null);
   const [importantNotesExpanded, setImportantNotesExpanded] = useState(true);
+  const [credentialLimits, setCredentialLimits] = useState<IssuedCredentialLimit[]>([]);
 
   const getActiveTargetUser = useCallback((): string | undefined => {
     // applyAdminTarget trims on write, so the stored value needs no re-trim here.
@@ -112,6 +118,17 @@ const Dashboard = () => {
     }
   }, [getActiveTargetUser]);
 
+  // The limits payload is advisory: if the plugin does not expose it, the
+  // dashboard keeps working exactly as before (no warning shown).
+  const loadCredentialLimits = useCallback(async () => {
+    try {
+      setCredentialLimits(await oid4vcService.getIssuedCredentialLimits());
+    } catch (error) {
+      console.warn('Failed to retrieve credential issuance limits', error);
+      setCredentialLimits([]);
+    }
+  }, []);
+
   const loadIssuedCredentials = useCallback(async () => {
     const requestId = ++credentialsRequestIdRef.current;
     setCredentialsLoading(true);
@@ -159,6 +176,10 @@ const Dashboard = () => {
   useEffect(() => {
     prepareQr();
   }, [prepareQr]);
+
+  useEffect(() => {
+    loadCredentialLimits();
+  }, [loadCredentialLimits]);
 
   useEffect(() => {
     if (activeTab === 'credentials') {
@@ -215,7 +236,8 @@ const Dashboard = () => {
       const viewOwner = targetUser || credentialViewOwner;
       await oid4vcService.revokeIssuedCredential(credentialToRevoke.id, reason);
       rememberRevokedCredential(viewOwner, credentialToRevoke);
-      // Optimistic UI: keep the row visible as Revoked without waiting for a refresh.
+      // Revoking frees a quota slot, so refresh limits to clear the warning.
+      loadCredentialLimits();
       setCredentials((currentCredentials) =>
         currentCredentials.map((issuedCredential) =>
           issuedCredential.id === credentialToRevoke.id
@@ -333,6 +355,10 @@ const Dashboard = () => {
               error={error}
               offerDeeplink={offerDeeplink}
               offerDeeplinkVal={offerDeeplinkVal}
+              limitWarning={getCredentialLimitWarning(
+                credentialLimits,
+                DEFAULT_CREDENTIAL_CONFIGURATION_ID
+              )}
               onRetry={prepareQr}
             />
           ) : (
