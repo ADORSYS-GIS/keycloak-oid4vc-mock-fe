@@ -1,6 +1,7 @@
 export function AppVersionFooter() {
   return (
     <footer
+      aria-label="Application version"
       style={{
         position: 'fixed',
         left: 0,
@@ -14,7 +15,7 @@ export function AppVersionFooter() {
         pointerEvents: 'none',
       }}
     >
-      v{__APP_VERSION__}
+      Version: <strong>{__APP_VERSION__}</strong>
     </footer>
   );
 }
