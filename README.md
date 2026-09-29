@@ -73,7 +73,6 @@ This application has been tested with:
 | **Requirement** | **Version** |
 | --------------- | ----------- |
 | **Keycloak**    | 26.7.3      |
-| **keycloak-js** | ^26.2.1     |
 
 While it may work with other versions, compatibility is not guaranteed. Ensure your environment matches the tested versions for best results.
 
