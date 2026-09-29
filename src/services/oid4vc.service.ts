@@ -34,6 +34,8 @@ export interface IssuedVerifiableCredential {
    * The dashboard maps this to the badge and only enables Revoke for VALID.
    */
   serverStatus?: string;
+  mappingStatus?: string | null;
+  countsTowardQuota?: boolean;
 }
 
 export interface IssuedCredentialStatusEntry {
@@ -48,21 +50,16 @@ export interface IssuedCredentialStatusEntry {
   clientName?: string;
   revision?: string;
   status: string;
-}
-
-export interface DanglingIssuedCredentials {
-  count: number;
-  notice: string | null;
+  mappingStatus?: string | null;
+  countsTowardQuota?: boolean;
 }
 
 export interface IssuedCredentialListing {
   credentials: IssuedCredentialStatusEntry[];
-  dangling: DanglingIssuedCredentials;
 }
 
 interface IssuedCredentialStatusResponse {
   credentials?: IssuedCredentialStatusEntry[];
-  dangling?: DanglingIssuedCredentials;
   limits?: IssuedCredentialLimit[];
 }
 
@@ -450,7 +447,7 @@ class Oid4vcService {
   }
 
   /**
-   * Fetches `/status-list/issued-credential-status` (`credentials` plus `dangling`).
+   * Fetches `/status-list/issued-credential-status`.
    * - No argument: the authenticated bearer's credentials.
    * - With `targetUser`: that holder's credentials (admin list).
    */
@@ -468,10 +465,6 @@ class Oid4vcService {
 
     return {
       credentials: response.credentials ?? [],
-      dangling: {
-        count: response.dangling?.count ?? 0,
-        notice: response.dangling?.notice ?? null,
-      },
     };
   }
 
@@ -515,6 +508,8 @@ class Oid4vcService {
       clientName: entry.clientName,
       revision: entry.revision,
       serverStatus: entry.status,
+      mappingStatus: entry.mappingStatus,
+      countsTowardQuota: entry.countsTowardQuota,
       revoked: entry.status === 'INVALID',
     };
   }

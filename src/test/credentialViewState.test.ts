@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildDisplayCredentials,
+  hasIncompleteStatusListMapping,
   mapPluginStatus,
   purgeLegacyCredentialViewState,
 } from '../components/dashboard/credentialViewState';
@@ -32,6 +33,16 @@ describe('mapPluginStatus', () => {
   });
 });
 
+describe('hasIncompleteStatusListMapping', () => {
+  it('treats null INIT and FAILURE as incomplete; SUCCESS and missing as not', () => {
+    expect(hasIncompleteStatusListMapping({ mappingStatus: null })).toBe(true);
+    expect(hasIncompleteStatusListMapping({ mappingStatus: 'INIT' })).toBe(true);
+    expect(hasIncompleteStatusListMapping({ mappingStatus: 'FAILURE' })).toBe(true);
+    expect(hasIncompleteStatusListMapping({ mappingStatus: 'SUCCESS' })).toBe(false);
+    expect(hasIncompleteStatusListMapping({})).toBe(false);
+  });
+});
+
 describe('buildDisplayCredentials', () => {
   it('uses the plugin status carried on each row', () => {
     const display = buildDisplayCredentials([
@@ -50,6 +61,19 @@ describe('buildDisplayCredentials', () => {
       credentialType: 'DatevCompanyCredential',
       status: 'revoked',
     });
+  });
+
+  it('passes through mappingStatus and countsTowardQuota', () => {
+    const display = buildDisplayCredentials([
+      credential({
+        serverStatus: 'UNKNOWN',
+        mappingStatus: null,
+        countsTowardQuota: true,
+      }),
+    ]);
+
+    expect(display[0].mappingStatus).toBeNull();
+    expect(display[0].countsTowardQuota).toBe(true);
   });
 
   it('renders nothing for an empty server response', () => {

@@ -38,8 +38,6 @@ const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [credentials, setCredentials] = useState<DisplayIssuedCredential[]>([]);
-  const [danglingCount, setDanglingCount] = useState(0);
-  const [danglingNotice, setDanglingNotice] = useState<string | null>(null);
   const [credentialsLoading, setCredentialsLoading] = useState(false);
   const [credentialsError, setCredentialsError] = useState<string | null>(null);
   const [revokingCredentialId, setRevokingCredentialId] = useState<string | null>(null);
@@ -154,33 +152,17 @@ const Dashboard = () => {
     const { requestId, signal } = beginCredentialsLoad();
     setCredentialsLoading(true);
     setCredentialsError(null);
-    setDanglingCount(0);
-    setDanglingNotice(null);
 
     try {
       const targetUser = getActiveTargetUser();
 
-      // One plugin call returns credentials (with status) plus any dangling notice.
-      // A failed call leaves nothing to render.
-      const listing = await oid4vcService.getIssuedCredentialListing(targetUser, signal);
+      // One plugin call returns each credential with metadata, status, and mapping fields.
+      // A failed call leaves nothing to render. Leftover notice is derived in CredentialsView.
+      const issuedCredentials = targetUser
+        ? await oid4vcService.getIssuedCredentialsFor(targetUser, signal)
+        : await oid4vcService.getIssuedCredentials(signal);
       if (requestId !== credentialsRequestId.current) return;
-      setDanglingCount(listing.dangling.count);
-      setDanglingNotice(listing.dangling.count > 0 ? listing.dangling.notice : null);
-      setCredentials(
-        buildDisplayCredentials(
-          listing.credentials.map((entry) => ({
-            id: entry.credentialId,
-            credentialType: entry.credentialType,
-            issuedAt: entry.issuedAt,
-            expiresAt: entry.expiresAt ?? undefined,
-            clientId: entry.clientId,
-            clientName: entry.clientName,
-            revision: entry.revision,
-            serverStatus: entry.status,
-            revoked: entry.status === 'INVALID',
-          }))
-        )
-      );
+      setCredentials(buildDisplayCredentials(issuedCredentials));
     } catch (error) {
       if (requestId !== credentialsRequestId.current) return;
       console.error('Failed to retrieve issued credentials', error);
@@ -380,8 +362,6 @@ const Dashboard = () => {
           ) : (
             <CredentialsView
               credentials={credentials}
-              danglingCount={danglingCount}
-              danglingNotice={danglingNotice}
               credentialsLoading={credentialsLoading}
               credentialsError={credentialsError}
               revokingCredentialId={revokingCredentialId}

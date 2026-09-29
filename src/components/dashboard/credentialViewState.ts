@@ -43,8 +43,20 @@ export function mapPluginStatus(status: string | undefined): CredentialStatus {
 }
 
 /**
+ * True when the plugin reported a non-SUCCESS mapping (or none). The Credentials tab
+ * derives a leftover notice from this — the plugin no longer sends a `dangling` object.
+ */
+export function hasIncompleteStatusListMapping(credential: {
+  mappingStatus?: string | null;
+}): boolean {
+  const status = credential.mappingStatus;
+  return status === null || status === 'INIT' || status === 'FAILURE';
+}
+
+/**
  * Builds the rows for the Credentials tab from the status-endpoint payload.
  * Each row already carries its plugin status. A missing status renders as unknown.
+ * `mappingStatus` / `countsTowardQuota` are passed through for leftover cards.
  */
 export function buildDisplayCredentials(
   credentials: IssuedVerifiableCredential[]

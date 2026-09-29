@@ -1,13 +1,15 @@
 import type { ReactNode } from 'react';
 import { Ban, Info, QrCode as QrCodeIcon, RefreshCw } from 'lucide-react';
+import { hasIncompleteStatusListMapping } from './credentialViewState';
 import { ErrorState, LoadingState, PrimaryButton } from './States';
 import { isRevocable, type CredentialStatus, type DisplayIssuedCredential } from './types';
 import { formatTimestamp } from './format';
 
+const LEFTOVER_MAPPING_NOTICE =
+  'Some entries have no successful status-list mapping. They may be leftovers from a failed issuance, or valid credentials that cannot be revoked here. Ask an administrator to remove the Keycloak issued-credential entry if a quota slot must be freed.';
+
 export function CredentialsView({
   credentials,
-  danglingCount = 0,
-  danglingNotice,
   credentialsLoading,
   credentialsError,
   revokingCredentialId,
@@ -16,8 +18,6 @@ export function CredentialsView({
   onRevoke,
 }: {
   credentials: DisplayIssuedCredential[];
-  danglingCount?: number;
-  danglingNotice?: string | null;
   credentialsLoading: boolean;
   credentialsError: string | null;
   revokingCredentialId: string | null;
@@ -26,6 +26,9 @@ export function CredentialsView({
   onRefresh: () => void;
   onRevoke: (credential: DisplayIssuedCredential) => void;
 }) {
+  const showLeftoverNotice =
+    !credentialsLoading && !credentialsError && credentials.some(hasIncompleteStatusListMapping);
+
   return (
     <div>
       {credentialsLoading && (
@@ -57,16 +60,9 @@ export function CredentialsView({
         </div>
       )}
 
-      {!credentialsLoading && !credentialsError && danglingNotice && (
-        <DanglingCredentialsNotice
-          count={danglingCount}
-          notice={danglingNotice}
-          showRefresh={credentials.length === 0}
-          onRefresh={onRefresh}
-        />
-      )}
+      {showLeftoverNotice && <LeftoverMappingNotice />}
 
-      {!credentialsLoading && !credentialsError && credentials.length === 0 && !danglingNotice && (
+      {!credentialsLoading && !credentialsError && credentials.length === 0 && (
         <EmptyCredentialsState forUser={forUser} />
       )}
 
@@ -105,21 +101,7 @@ export function CredentialsView({
   );
 }
 
-function hiddenRecordsLabel(count: number): string {
-  return count === 1 ? '1 issuance record is hidden' : `${count} issuance records are hidden`;
-}
-
-function DanglingCredentialsNotice({
-  count,
-  notice,
-  showRefresh,
-  onRefresh,
-}: {
-  count: number;
-  notice: string;
-  showRefresh: boolean;
-  onRefresh: () => void;
-}) {
+function LeftoverMappingNotice() {
   return (
     <div
       role="status"
@@ -148,36 +130,17 @@ function DanglingCredentialsNotice({
         >
           <Info size={18} aria-hidden="true" />
         </div>
-        <div>
-          <p
-            style={{
-              margin: '0 0 6px',
-              fontSize: '1rem',
-              fontWeight: 600,
-              color: 'var(--color-text)',
-            }}
-          >
-            {hiddenRecordsLabel(count)}
-          </p>
-          <p
-            style={{
-              margin: 0,
-              lineHeight: 1.55,
-              fontSize: '0.9rem',
-              color: 'var(--color-muted)',
-            }}
-          >
-            {notice}
-          </p>
-        </div>
+        <p
+          style={{
+            margin: 0,
+            lineHeight: 1.55,
+            fontSize: '0.9rem',
+            color: 'var(--color-muted)',
+          }}
+        >
+          {LEFTOVER_MAPPING_NOTICE}
+        </p>
       </div>
-      {showRefresh && (
-        <div style={{ marginTop: '16px', textAlign: 'center' }}>
-          <PrimaryButton onClick={onRefresh} icon={<RefreshCw size={18} />}>
-            Refresh credentials
-          </PrimaryButton>
-        </div>
-      )}
     </div>
   );
 }
@@ -300,6 +263,11 @@ function CredentialCard({
           label="Wallet client"
           value={credential.clientName || credential.clientId || '-'}
         />
+        <DetailItem label="Mapping" value={credential.mappingStatus || 'None'} />
+        <DetailItem
+          label="Counts toward quota"
+          value={quotaOccupancyLabel(credential.countsTowardQuota)}
+        />
       </div>
 
       <div
@@ -334,6 +302,12 @@ function CredentialCard({
       </div>
     </div>
   );
+}
+
+function quotaOccupancyLabel(countsTowardQuota?: boolean): string {
+  if (countsTowardQuota === true) return 'Yes';
+  if (countsTowardQuota === false) return 'No';
+  return '-';
 }
 
 function DetailItem({ label, value }: { label: string; value: ReactNode }) {
