@@ -38,6 +38,7 @@ export interface IssuedVerifiableCredential {
 
 interface IssuedCredentialStatusResponse {
   credentials: IssuedCredentialStatusEntry[];
+  limits?: IssuedCredentialLimit[];
 }
 
 export interface IssuedCredentialStatusEntry {
@@ -59,6 +60,14 @@ interface CredentialRevocationResponse {
   message?: string;
   error?: string;
   error_description?: string;
+}
+
+export interface IssuedCredentialLimit {
+  credentialConfigurationId: string;
+  max: number;
+  activeCount: number;
+  remaining: number;
+  overflowPolicy: string;
 }
 
 export const CredentialConfigurationId = {
@@ -403,6 +412,26 @@ class Oid4vcService {
       `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.ISSUED_VERIFIABLE_CREDENTIALS}`,
       'Issued credentials lookup'
     );
+  }
+
+  async getIssuedCredentialLimits(): Promise<IssuedCredentialLimit[]> {
+    const response = await fetch(
+      `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.ISSUED_CREDENTIAL_STATUS}`,
+      { headers: await this.getAuthHeaders() }
+    );
+
+    // The limits payload is optional (older plugins and unlimited types omit it);
+    // treat any endpoint or payload failure as "no limits" instead of an error.
+    if (!response.ok) {
+      return [];
+    }
+
+    try {
+      const data = (await response.json()) as IssuedCredentialStatusResponse;
+      return Array.isArray(data?.limits) ? data.limits : [];
+    } catch {
+      return [];
+    }
   }
 
   /**
