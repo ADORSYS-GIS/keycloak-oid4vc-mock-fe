@@ -7,15 +7,14 @@ export function AppVersionFooter() {
         left: 0,
         right: 0,
         bottom: 12,
-        display: 'flex',
-        justifyContent: 'center',
+        textAlign: 'center',
         color: 'var(--color-muted)',
         fontSize: 12,
         lineHeight: 1,
         pointerEvents: 'none',
       }}
     >
-      Version <strong>{__APP_VERSION__}</strong>
+      {'Version '}<strong>{__APP_VERSION__}</strong>
     </footer>
   );
 }
