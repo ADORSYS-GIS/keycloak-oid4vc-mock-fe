@@ -71,13 +71,13 @@ username={preferred_username}
 
 ### Load Issued Credentials
 
-The credentials tab loads from the token status plugin. That response includes the credential id, type, issued time, revision, wallet client, and status. The account endpoint is not used.
+The credentials tab loads from the token status plugin. That response includes the credential id, type, issued time, revision, wallet client, and status.
 
 ```text
 GET /realms/{realm}/status-list/issued-credential-status
 ```
 
-Without `target_user`, the plugin uses the bearer token.
+With no `target_user`, this request returns the signed-in user's credentials.
 
 | Plugin status | UI badge  | Revoke   |
 | ------------- | --------- | -------- |

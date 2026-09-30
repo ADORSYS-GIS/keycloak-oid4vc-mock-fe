@@ -140,7 +140,7 @@ const Dashboard = () => {
       const targetUser = getActiveTargetUser();
 
       // One plugin call returns each credential with its metadata and status.
-      // The account endpoint is not used. A failed call leaves nothing to render.
+      // A failed call leaves nothing to render.
       const issuedCredentials = targetUser
         ? await oid4vcService.getIssuedCredentialsFor(targetUser, signal)
         : await oid4vcService.getIssuedCredentials(signal);

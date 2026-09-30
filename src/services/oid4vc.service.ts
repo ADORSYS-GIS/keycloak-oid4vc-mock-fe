@@ -402,7 +402,7 @@ class Oid4vcService {
 
   /**
    * Holder credential list. The status endpoint returns the metadata and the plugin
-   * status together, so the account endpoint is not called.
+   * status together.
    */
   async getIssuedCredentials(signal?: AbortSignal): Promise<IssuedVerifiableCredential[]> {
     const entries = await this.getIssuedCredentialStatus(undefined, signal);
