@@ -2,6 +2,8 @@
 
 This project is a React application that demonstrates how to integrate Keycloak for Single Sign-On (SSO) and interact with an OID4VC (OpenID for Verifiable Credentials) service. It provides a basic setup for user authentication and a protected dashboard page.
 
+![Credential Portal showing a credential offer QR code](docs/assets/credential-portal.png)
+
 ## Features
 
 - **User Authentication:** Login and logout functionality using Keycloak SSO.
@@ -16,9 +18,15 @@ This project is a React application that demonstrates how to integrate Keycloak 
 
 ## Architecture
 
-The first login is username and password on the Keycloak page. This app then shows the Credential Portal, where the user scans an offer QR and the wallet receives a credential. That credential is listed in the client. After logout, **Sign in with a wallet** shows a presentation QR. Scanning the credential that is still valid logs the user back into the Credential Portal. Revoke on the Credentials tab is separate: if that credential was revoked, the same scan is rejected. The wallet QR and the status check belong to the OID4VP plugin, not to this app.
+The mock frontend is the client app. **Login** contains Login with Keycloak. **Dashboard** contains Credential Offer and Credentials. Keycloak, the EUDI wallet, and the status list are outside that app.
 
-![Architecture of login, issuance, and wallet sign-in](docs/assets/architecture.png)
+Login with Keycloak opens the Keycloak login page, which asks for a username and password. Credential Offer then shows the offer QR. The wallet scans it and the user chooses Issue VC. The Credentials tab lists that credential as valid from Keycloak.
+
+Revoke is separate. The Credentials tab asks Keycloak to revoke the credential. Keycloak writes that status to the status list, and the Credentials tab shows the credential as revoked.
+
+Sign in with a wallet is not a screen in this app. It appears under the password on the Keycloak login page when the login theme is saved. Choosing it shows a presentation QR. The wallet scans it, the user clicks Share, and the portal opens on Credential Offer.
+
+![Architecture of the client app, Keycloak, the wallet, and the status list](docs/assets/architecture.png)
 
 ## Getting Started
 
@@ -26,7 +34,7 @@ These instructions will get you a copy of the project up and running on your loc
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (v18 or higher recommended)
+- [Node.js](https://nodejs.org/) (v22 or higher)
 - [npm](https://yarnpkg.com/) package manager
 - A running Keycloak instance with a configured realm and client.
 
@@ -69,6 +77,28 @@ In the project directory, you can run:
 - `npm run build`: Builds the app for production to the `dist` folder.
 - `npm run lint`: Lints the codebase using ESLint.
 - `npm run preview`: Serves the production build locally for preview.
+
+## Compatibility
+
+This application has been tested with:
+
+| **Requirement** | **Version** |
+| --------------- | ----------- |
+| **Keycloak**    | 26.7.3      |
+
+While it may work with other versions, compatibility is not guaranteed. Ensure your environment matches the tested versions for best results.
+
+## Versioning
+
+This project follows [Semantic Versioning](https://semver.org/). The current version is `0.1.0`, defined in `package.json`.
+
+Releases are identified by Git tags in the format `vX.Y.Z`, matching the version in `package.json`.
+
+To create a release:
+
+1. Bump the `version` field in `package.json`.
+2. Commit the version change.
+3. Tag that commit as `vX.Y.Z`.
 
 ## License
 

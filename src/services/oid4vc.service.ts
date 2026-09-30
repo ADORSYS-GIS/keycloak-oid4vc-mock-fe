@@ -1,4 +1,5 @@
 import keycloak from '../config/keycloak.config';
+import type { UserProfile } from '../types';
 
 interface CredentialOfferUriResponse {
   credential_offer_uri?: string;
@@ -21,6 +22,37 @@ export interface IssuedVerifiableCredential {
   clientName?: string;
   clientBaseUrl?: string;
   revision?: string;
+  /**
+   * Convenience flag: true only when plugin status is INVALID.
+   * Do not use this alone for UI badges — UNKNOWN/SUSPENDED also map to revoked:false
+   * but must not look Valid. Prefer `serverStatus` (or the dashboard `status` field).
+   */
+  revoked?: boolean;
+  /**
+   * Authoritative plugin status when this row came from
+   * `/status-list/issued-credential-status` (`VALID` / `INVALID` / `SUSPENDED` / `UNKNOWN`).
+   * The dashboard maps this to the badge and only enables Revoke for VALID.
+   */
+  serverStatus?: string;
+}
+
+interface IssuedCredentialStatusResponse {
+  credentials: IssuedCredentialStatusEntry[];
+  limits?: IssuedCredentialLimit[];
+}
+
+export interface IssuedCredentialStatusEntry {
+  credentialId: string;
+  verifiableCredentialId?: string;
+  /** Credential configuration name. */
+  credentialType?: string;
+  issuedAt?: number;
+  expiresAt?: number | null;
+  clientId?: string;
+  /** Display name of the requesting client, falling back to its public client id. */
+  clientName?: string;
+  revision?: string;
+  status: string;
 }
 
 interface CredentialRevocationResponse {
@@ -28,6 +60,14 @@ interface CredentialRevocationResponse {
   message?: string;
   error?: string;
   error_description?: string;
+}
+
+export interface IssuedCredentialLimit {
+  credentialConfigurationId: string;
+  max: number;
+  activeCount: number;
+  remaining: number;
+  overflowPolicy: string;
 }
 
 export const CredentialConfigurationId = {
@@ -56,7 +96,7 @@ class Oid4vcService {
   private static readonly ENDPOINTS = {
     CREATE_CREDENTIAL_OFFER: '/protocol/oid4vc/create-credential-offer',
     CREDENTIAL_OFFER_URI: '/protocol/oid4vc/credential-offer-uri',
-    ISSUED_VERIFIABLE_CREDENTIALS: '/account/issued-verifiable-credentials',
+    ISSUED_CREDENTIAL_STATUS: '/status-list/issued-credential-status',
     TOKEN_REVOCATION: '/status-list/revoke',
   };
 
@@ -64,6 +104,12 @@ class Oid4vcService {
     const keycloakUrl = import.meta.env.VITE_KEYCLOAK_URL;
     const realm = import.meta.env.VITE_KEYCLOAK_REALM;
     return `${keycloakUrl}/realms/${realm}`;
+  }
+
+  private getAdminBaseUrl(): string {
+    const keycloakUrl = import.meta.env.VITE_KEYCLOAK_URL;
+    const realm = import.meta.env.VITE_KEYCLOAK_REALM;
+    return `${keycloakUrl}/admin/realms/${realm}`;
   }
 
   private async getAuthHeaders(): Promise<HeadersInit> {
@@ -76,9 +122,12 @@ class Oid4vcService {
     };
   }
 
-  private async getJsonResponse<T>(url: string, context: string): Promise<T> {
+  private async getJsonResponse<T>(url: string, context: string, signal?: AbortSignal): Promise<T> {
     const headers = await this.getAuthHeaders();
-    const response = await fetch(url, { headers });
+    // An optional signal cancels the request while it is still running. The dashboard
+    // passes one when a newer credential load starts, so the older load stops instead of
+    // finishing and overwriting newer data.
+    const response = await fetch(url, { headers, signal });
 
     if (!response.ok) {
       throw new Error(`${context} failed: ${await this.getResponseError(response)}`);
@@ -136,21 +185,23 @@ class Oid4vcService {
   }
 
   async getCredentialOfferUri(
-    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID
+    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID,
+    targetUser: string = this.getUsername()
   ): Promise<string> {
     return this.withFallback(
-      () => this.getCredentialOfferUriKeycloak26_6_0(credentialConfigurationId),
-      () => this.getCredentialOfferUriPreKeycloak26_6_0(credentialConfigurationId),
+      () => this.getCredentialOfferUriKeycloak26_6_0(credentialConfigurationId, targetUser),
+      () => this.getCredentialOfferUriPreKeycloak26_6_0(credentialConfigurationId, targetUser),
       'CredentialOfferUri'
     );
   }
 
   private async getCredentialOfferUriKeycloak26_6_0(
-    credentialConfigurationId: string
+    credentialConfigurationId: string,
+    targetUser: string
   ): Promise<string> {
     const queryParams: QueryParams = {
       credential_configuration_id: credentialConfigurationId,
-      target_user: this.getUsername(),
+      target_user: targetUser,
       pre_authorized: IS_PRE_AUTHORIZED_FLOW ? 'true' : 'false',
     };
 
@@ -162,11 +213,12 @@ class Oid4vcService {
   }
 
   private async getCredentialOfferUriPreKeycloak26_6_0(
-    credentialConfigurationId: string
+    credentialConfigurationId: string,
+    targetUser: string
   ): Promise<string> {
     const queryParams: QueryParams = {
       credential_configuration_id: credentialConfigurationId,
-      username: this.getUsername(),
+      username: targetUser,
     };
 
     return this.fetchCredentialOfferUri(
@@ -260,21 +312,23 @@ class Oid4vcService {
   }
 
   async getCredentialOfferPng(
-    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID
+    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID,
+    targetUser: string = this.getUsername()
   ): Promise<Blob> {
     return this.withFallback(
-      () => this.getCredentialOfferPngKeycloak26_6_0(credentialConfigurationId),
-      () => this.getCredentialOfferPngPreKeycloak26_6_0(credentialConfigurationId),
+      () => this.getCredentialOfferPngKeycloak26_6_0(credentialConfigurationId, targetUser),
+      () => this.getCredentialOfferPngPreKeycloak26_6_0(credentialConfigurationId, targetUser),
       'CredentialOfferPng'
     );
   }
 
   private async getCredentialOfferPngKeycloak26_6_0(
-    credentialConfigurationId: string
+    credentialConfigurationId: string,
+    targetUser: string
   ): Promise<Blob> {
     const queryParams: QueryParams = {
       credential_configuration_id: credentialConfigurationId,
-      target_user: this.getUsername(),
+      target_user: targetUser,
       pre_authorized: IS_PRE_AUTHORIZED_FLOW ? 'true' : 'false',
       type: 'qr-code',
     };
@@ -287,11 +341,12 @@ class Oid4vcService {
   }
 
   private async getCredentialOfferPngPreKeycloak26_6_0(
-    credentialConfigurationId: string
+    credentialConfigurationId: string,
+    targetUser: string
   ): Promise<Blob> {
     const queryParams: QueryParams = {
       credential_configuration_id: credentialConfigurationId,
-      username: this.getUsername(),
+      username: targetUser,
       type: 'qr-code',
     };
 
@@ -327,10 +382,11 @@ class Oid4vcService {
   }
 
   async getCredentialOfferQrDataUrl(
-    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID
+    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID,
+    targetUser: string = this.getUsername()
   ): Promise<string> {
     try {
-      const pngBlob = await this.getCredentialOfferPng(credentialConfigurationId);
+      const pngBlob = await this.getCredentialOfferPng(credentialConfigurationId, targetUser);
       return this.blobToDataURL(pngBlob);
     } catch (error) {
       console.error('Failed to get QR code data URL:', error);
@@ -340,9 +396,10 @@ class Oid4vcService {
 
   async getCredentialOfferDeeplink(
     byReference: boolean = true,
-    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID
+    credentialConfigurationId: string = DEFAULT_CREDENTIAL_CONFIGURATION_ID,
+    targetUser: string = this.getUsername()
   ): Promise<string> {
-    const offerUrl = await this.getCredentialOfferUri(credentialConfigurationId);
+    const offerUrl = await this.getCredentialOfferUri(credentialConfigurationId, targetUser);
 
     if (byReference) {
       return this.buildOfferDeeplink({}, offerUrl, 'uri');
@@ -352,10 +409,110 @@ class Oid4vcService {
     return this.buildOfferDeeplink(offer, offerUrl, 'json');
   }
 
-  async getIssuedCredentials(): Promise<IssuedVerifiableCredential[]> {
-    return this.getJsonResponse<IssuedVerifiableCredential[]>(
-      `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.ISSUED_VERIFIABLE_CREDENTIALS}`,
-      'Issued credentials lookup'
+  /**
+   * Holder credential list. The status endpoint returns the metadata and the plugin
+   * status together.
+   */
+  async getIssuedCredentials(signal?: AbortSignal): Promise<IssuedVerifiableCredential[]> {
+    const entries = await this.getIssuedCredentialStatus(undefined, signal);
+    return entries.map((entry) => this.toIssuedCredential(entry));
+  }
+
+  async getIssuedCredentialLimits(): Promise<IssuedCredentialLimit[]> {
+    const response = await fetch(
+      `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.ISSUED_CREDENTIAL_STATUS}`,
+      { headers: await this.getAuthHeaders() }
+    );
+
+    // The limits payload is optional (older plugins and unlimited types omit it);
+    // treat any endpoint or payload failure as "no limits" instead of an error.
+    if (!response.ok) {
+      return [];
+    }
+
+    try {
+      const data = (await response.json()) as IssuedCredentialStatusResponse;
+      return Array.isArray(data?.limits) ? data.limits : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Fetches issued-credential statuses from `/status-list/issued-credential-status`.
+   * - No argument: the authenticated bearer's credentials.
+   * - With `targetUser`: that holder's credentials (admin list).
+   */
+  async getIssuedCredentialStatus(
+    targetUser?: string,
+    signal?: AbortSignal
+  ): Promise<IssuedCredentialStatusEntry[]> {
+    const queryString = this.buildQueryString({ target_user: targetUser });
+    const suffix = queryString ? `?${queryString}` : '';
+    const response = await this.getJsonResponse<IssuedCredentialStatusResponse>(
+      `${this.getBaseUrl()}${Oid4vcService.ENDPOINTS.ISSUED_CREDENTIAL_STATUS}${suffix}`,
+      'Issued credential status lookup',
+      signal
+    );
+
+    return response.credentials;
+  }
+
+  /**
+   * Admin credential list for another user.
+   * Calls the same plugin endpoint as {@link getIssuedCredentialStatus}, then maps each
+   * entry onto the dashboard credential shape.
+   *
+   * Important: the plugin `status` is kept as `serverStatus`. Collapsing it to a boolean
+   * `revoked` would make UNKNOWN and SUSPENDED look Valid in the UI, and revoke would
+   * then 404 when no status-list mapping exists.
+   */
+  async getIssuedCredentialsFor(
+    targetUser: string,
+    signal?: AbortSignal
+  ): Promise<IssuedVerifiableCredential[]> {
+    const entries = await this.getIssuedCredentialStatus(targetUser, signal);
+    return entries.map((entry) => this.toIssuedCredential(entry));
+  }
+
+  private toIssuedCredential(entry: IssuedCredentialStatusEntry): IssuedVerifiableCredential {
+    return {
+      id: entry.credentialId,
+      credentialType: entry.credentialType,
+      issuedAt: entry.issuedAt,
+      expiresAt: entry.expiresAt ?? undefined,
+      clientId: entry.clientId,
+      clientName: entry.clientName,
+      revision: entry.revision,
+      serverStatus: entry.status,
+      revoked: entry.status === 'INVALID',
+    };
+  }
+
+  /**
+   * Lists every realm user (admin flow) via the Keycloak Admin REST API.
+   *
+   * Permission model: `credential-offer-create` is enough to *act* on another user
+   * (offer / list / revoke), but it is **not** enough to enumerate realm users.
+   * The caller must also hold a realm-management role that grants user visibility
+   * (`view-users` or `query-users`). A token with only `credential-offer-create`
+   * receives 403 from `/users/count` and this method rejects; the dashboard then
+   * disables the target dropdown rather than inventing a user list.
+   *
+   * The count endpoint sizes the list request so every realm user is returned —
+   * Keycloak would otherwise silently cap the response at its default of 100 entries.
+   */
+  async getRealmUsers(): Promise<UserProfile[]> {
+    const count = await this.getJsonResponse<number>(
+      `${this.getAdminBaseUrl()}/users/count`,
+      'Realm users count'
+    );
+
+    if (count <= 0) return [];
+
+    return this.getJsonResponse<UserProfile[]>(
+      `${this.getAdminBaseUrl()}/users?briefRepresentation=true&max=${count}`,
+      'Realm users lookup'
     );
   }
 
@@ -364,6 +521,9 @@ class Oid4vcService {
     reason = 'Client app revocation'
   ): Promise<void> {
     const headers = await this.getAuthHeaders();
+    // Backend (token-status-link) authorizes admin revoke from the bearer role + credential_id.
+    // It does not read target_user. Sending that field would only mislead docs/tests into
+    // thinking the client scopes the revoke — so the body matches self-service revoke.
     const body = new URLSearchParams({
       mode: 'issued_credential_revocation',
       credential_id: credentialId,
