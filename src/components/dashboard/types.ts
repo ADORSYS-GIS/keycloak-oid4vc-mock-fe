@@ -9,10 +9,6 @@ export type DisplayIssuedCredential = IssuedVerifiableCredential & {
   status: CredentialStatus;
 };
 
-export type StoredCredentialViewState = {
-  revokedCredentials: Record<string, IssuedVerifiableCredential>;
-};
-
 export function isRevocable(status: CredentialStatus): boolean {
   // Only VALID/active credentials can be revoked; UNKNOWN/SUSPENDED/revoked stay disabled.
   return status === 'active';

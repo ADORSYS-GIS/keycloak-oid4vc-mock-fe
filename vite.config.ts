@@ -27,7 +27,7 @@ function shortCommitHash(): string | undefined {
 }
 
 const commit = shortCommitHash();
-const appVersion = commit ? `${version} (${commit})` : version;
+const appVersion = commit ? `${version} · Commit ${commit}` : version;
 
 export default defineConfig({
   define: {

@@ -128,15 +128,31 @@ describe('admin credential listing', () => {
     expect(credentials[1].serverStatus).toBe('SUSPENDED');
   });
 
-  it('loads the self-service list from the account endpoint without a target param', async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse([{ id: 'own-cred-1' }]));
+  it('loads the holder list from the status endpoint without a target param', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        credentials: [
+          {
+            credentialId: 'own-cred-1',
+            credentialType: 'DatevCompanyCredential',
+            clientName: 'wallet-app',
+            status: 'VALID',
+          },
+        ],
+      })
+    );
 
     const credentials = await oid4vcService.getIssuedCredentials();
 
     expect(fetchMock.mock.calls[0][0]).toBe(
-      'https://kc.test/realms/test-realm/account/issued-verifiable-credentials'
+      'https://kc.test/realms/test-realm/status-list/issued-credential-status'
     );
-    expect(credentials[0].id).toBe('own-cred-1');
+    expect(credentials[0]).toMatchObject({
+      id: 'own-cred-1',
+      credentialType: 'DatevCompanyCredential',
+      clientName: 'wallet-app',
+      serverStatus: 'VALID',
+    });
   });
 
   it('reads self-service live status from the plugin without target_user', async () => {
@@ -213,6 +229,29 @@ describe('admin credential listing', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('https://kc.test/admin/realms/test-realm/users/count');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it('surfaces the server-provided error message when the plugin responds with an error', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error_description: 'status list unavailable' }), {
+        status: 503,
+        statusText: 'Service Unavailable',
+      })
+    );
+
+    await expect(oid4vcService.getIssuedCredentialStatus()).rejects.toThrow(
+      'Issued credential status lookup failed: status list unavailable'
+    );
+  });
+
+  it('falls back to the HTTP status text when the error body is not JSON', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response('not json', { status: 503, statusText: 'Service Unavailable' })
+    );
+
+    await expect(oid4vcService.getIssuedCredentialStatus()).rejects.toThrow(
+      'Issued credential status lookup failed: Service Unavailable'
+    );
+  });
 });
 
 describe('admin list then revoke HTTP contract', () => {
@@ -248,5 +287,18 @@ describe('admin list then revoke HTTP contract', () => {
     expect(body.get('credential_id')).toBe('chidi-cred-1');
     expect(body.get('reason')).toBe('compromised');
     expect(body.get('target_user')).toBeNull();
+  });
+
+  it('throws with the server-provided message when the revocation is rejected', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: 'already revoked' }), {
+        status: 409,
+        statusText: 'Conflict',
+      })
+    );
+
+    await expect(oid4vcService.revokeIssuedCredential('cred-1', 'reason')).rejects.toThrow(
+      'Issued credential revocation failed: already revoked'
+    );
   });
 });

@@ -25,7 +25,8 @@ The frontend is responsible for:
 - authenticating the user through Keycloak;
 - requesting credential offer links from Keycloak;
 - rendering the selected QR code variant;
-- loading issued credentials for the authenticated account;
+- loading issued credentials from the token status plugin;
+- loading the issuance quota (`limits`) for the account and warning when the cap is reached;
 - collecting a revocation reason before sending the revocation request;
 - keeping a revoked credential visible in the UI with status `revoked`.
 
@@ -71,35 +72,48 @@ username={preferred_username}
 
 ### Load Issued Credentials
 
-```text
-GET /realms/{realm}/account/issued-verifiable-credentials
-```
-
-The response is displayed in the `Credentials` tab. The UI uses the credential `id` as the revocation target and displays:
-
-- credential type;
-- issued timestamp;
-- revision;
-- wallet client;
-- status.
-
-The account endpoint does not carry revocation status, so the dashboard also fetches the token status plugin's view and merges it in:
+The credentials tab loads from the token status plugin. That response includes the credential id, type, issued time, revision, wallet client, and status.
 
 ```text
 GET /realms/{realm}/status-list/issued-credential-status
 ```
 
-Without a `target_user` parameter the plugin resolves the caller from the bearer token. The two responses are merged by issued credential id: the account endpoint supplies the metadata, the plugin supplies the authoritative status.
+With no `target_user`, this request returns the signed-in user's credentials.
 
-| Plugin status                      | UI badge  | Revoke   |
-| ---------------------------------- | --------- | -------- |
-| `VALID`                            | Valid     | enabled  |
-| `INVALID`                          | Revoked   | disabled |
-| `SUSPENDED`                        | Suspended | disabled |
-| `UNKNOWN` (no status-list mapping) | Unknown   | disabled |
-| lookup failed                      | Unknown   | disabled |
+| Plugin status | UI badge  | Revoke   |
+| ------------- | --------- | -------- |
+| `VALID`       | Valid     | enabled  |
+| `INVALID`     | Revoked   | disabled |
+| `SUSPENDED`   | Suspended | disabled |
+| `UNKNOWN`     | Unknown   | disabled |
 
-A missing mapping or a failed plugin call must not render as Valid: revocation would 404, and a revoked credential could look actionable.
+Only credentials returned by that endpoint are shown. `UNKNOWN` is not shown as Valid.
+
+### Load Issuance Limits
+
+```text
+GET /realms/{realm}/status-list/issued-credential-status
+Accept: application/json
+```
+
+Bearer-authenticated like the other realm endpoints. Only the optional `limits` array is used by the client:
+
+```json
+{
+  "credentials": [],
+  "limits": [
+    {
+      "credentialConfigurationId": "IdentityCredential",
+      "max": 3,
+      "activeCount": 3,
+      "remaining": 0,
+      "overflowPolicy": "REJECT"
+    }
+  ]
+}
+```
+
+Credential types without a configured maximum are omitted from `limits`.
 
 ### Revoke Issued Credential
 
@@ -116,7 +130,7 @@ credential_id={issuedCredentialId}
 reason={userProvidedReason}
 ```
 
-After a successful response, the frontend marks the credential as `revoked` locally and keeps it visible. This is intentional: a revoked credential should remain auditable in the UI instead of disappearing from the list.
+After a successful response, the frontend marks the credential immediately as `revoked` on the UI.
 
 ## Sequence Diagram
 
@@ -132,6 +146,18 @@ The revocation action must remain server-authoritative:
 - Keycloak must find the status list mapping for the issued credential.
 - Keycloak must update the status list server.
 - The frontend only reflects the successful server response.
+
+## Issuance Limit Warning
+
+The token-status-list plugin can cap how many non-revoked credentials a holder may hold per credential type (mapper config `status-list-max-credentials-per-user`, configured in the Keycloak Admin Console).
+
+The client is not responsible for configuring or enforcing the limit. It only warns:
+
+- On load, and again when the credential offer is refreshed, the dashboard reads the optional `limits` array from `GET .../status-list/issued-credential-status`.
+- On the `Credential Offer` tab, when the entry for `VITE_OID4VC_DEFAULT_CREDENTIAL_CONFIGURATION_ID` has `remaining: 0`, an advisory warning is shown above the QR code.
+- The QR code stays visible and scannable. The warning is advisory; enforcement stays on the plugin.
+- After a successful revocation, the client reloads `limits` so the warning clears when a slot is free.
+- If the `limits` payload is missing, empty, or the endpoint fails, no warning is shown and all existing flows continue unchanged.
 
 ## Admin-Initiated Flows (Admin Mode)
 
@@ -152,7 +178,7 @@ with the pre-26.6 fallback `username={selectedUsername}` on `credential-offer-ur
 
 ### List Credentials Issued to Another User
 
-The admin list uses the token status plugin endpoint instead of the account endpoint, so it can report the real server-side status:
+The admin list uses the same plugin endpoint, with the selected user:
 
 ```text
 GET /realms/{realm}/status-list/issued-credential-status?target_user={selectedUsername}
@@ -173,7 +199,7 @@ credential_id={issuedCredentialId}
 reason={userProvidedReason}
 ```
 
-After a successful response the frontend marks the credential `revoked` immediately in the list, so it stays visible and auditable.
+After a successful response, the frontend marks the credential immediately as `revoked` on the UI.
 
 ## Presentation Status Check
 
@@ -203,6 +229,16 @@ The verifier fetches the status list token, validates its signature and certific
 9. Submit the revocation.
 10. Confirm the credential remains visible with status `revoked`.
 11. Try presenting the revoked credential and confirm status validation rejects it.
+
+## Testing the Issuance Limit Warning
+
+1. Log in to the Keycloak Admin Console.
+2. Open the credential mapper for `VITE_OID4VC_DEFAULT_CREDENTIAL_CONFIGURATION_ID` and set `Max credentials per user` to a small positive number.
+3. Log in to the client app as a holder who still has fewer non-revoked credentials of that type than the cap.
+4. Open the `Credential Offer` tab and confirm no issuance-limit warning is shown.
+5. Issue credentials of that type until the holder reaches the cap.
+6. Confirm the warning appears above the QR code, and the QR code stays visible and scannable.
+7. Revoke one credential of that type and confirm the warning clears.
 
 ## Testing the Admin Path
 

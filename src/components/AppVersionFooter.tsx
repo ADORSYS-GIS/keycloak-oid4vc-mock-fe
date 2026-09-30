@@ -15,7 +15,7 @@ export function AppVersionFooter() {
         pointerEvents: 'none',
       }}
     >
-      Version: <strong>{__APP_VERSION__}</strong>
+      Version <strong>{__APP_VERSION__}</strong>
     </footer>
   );
 }

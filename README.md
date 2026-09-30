@@ -22,7 +22,7 @@ These instructions will get you a copy of the project up and running on your loc
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (v18 or higher recommended)
+- [Node.js](https://nodejs.org/) (v22 or higher)
 - [npm](https://yarnpkg.com/) package manager
 - A running Keycloak instance with a configured realm and client.
 
@@ -65,6 +65,16 @@ In the project directory, you can run:
 - `npm run build`: Builds the app for production to the `dist` folder.
 - `npm run lint`: Lints the codebase using ESLint.
 - `npm run preview`: Serves the production build locally for preview.
+
+## Compatibility
+
+This application has been tested with:
+
+| **Requirement** | **Version** |
+| --------------- | ----------- |
+| **Keycloak**    | 26.7.3      |
+
+While it may work with other versions, compatibility is not guaranteed. Ensure your environment matches the tested versions for best results.
 
 ## Versioning
 
