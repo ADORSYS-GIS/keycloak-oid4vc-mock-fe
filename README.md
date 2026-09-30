@@ -66,6 +66,16 @@ In the project directory, you can run:
 - `npm run lint`: Lints the codebase using ESLint.
 - `npm run preview`: Serves the production build locally for preview.
 
+## Compatibility
+
+This application has been tested with:
+
+| **Requirement** | **Version** |
+| --------------- | ----------- |
+| **Keycloak**    | 26.7.3      |
+
+While it may work with other versions, compatibility is not guaranteed. Ensure your environment matches the tested versions for best results.
+
 ## Versioning
 
 This project follows [Semantic Versioning](https://semver.org/). The current version is `0.1.0`, defined in `package.json`.

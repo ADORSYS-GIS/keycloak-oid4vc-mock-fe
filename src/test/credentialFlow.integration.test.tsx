@@ -127,11 +127,13 @@ describe('issued credential flow through the real service', () => {
     ).toBe(false);
 
     await waitFor(() => {
+      // Offer load reads limits, the Credentials tab reads the list, and a
+      // successful revoke reloads both. All four use the status endpoint.
       expect(
         fetchMock.mock.calls.filter(([url]) =>
           String(url).includes('/status-list/issued-credential-status')
         )
-      ).toHaveLength(2);
+      ).toHaveLength(4);
     });
     expect(screen.getByText('Revoked')).toBeInTheDocument();
   });

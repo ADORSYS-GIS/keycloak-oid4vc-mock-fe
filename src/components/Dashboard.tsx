@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import oid4vcService from '../services/oid4vc.service';
+import oid4vcService, {
+  DEFAULT_CREDENTIAL_CONFIGURATION_ID,
+  type IssuedCredentialLimit,
+} from '../services/oid4vc.service';
 import type { UserProfile } from '../types';
 import { CredentialOfferView } from './dashboard/CredentialOfferView';
 import { CredentialsView } from './dashboard/CredentialsView';
@@ -9,6 +12,7 @@ import { DashboardTabs } from './dashboard/DashboardTabs';
 import { RevocationDialog } from './dashboard/RevocationDialog';
 import {
   buildDisplayCredentials,
+  getCredentialLimitWarning,
   purgeLegacyCredentialViewState,
 } from './dashboard/credentialViewState';
 import { isRevocable, type DashboardTab, type DisplayIssuedCredential } from './dashboard/types';
@@ -43,6 +47,7 @@ const Dashboard = () => {
   const [revocationReason, setRevocationReason] = useState('');
   const [revocationReasonError, setRevocationReasonError] = useState<string | null>(null);
   const [importantNotesExpanded, setImportantNotesExpanded] = useState(true);
+  const [credentialLimits, setCredentialLimits] = useState<IssuedCredentialLimit[]>([]);
   // Guards against out-of-order responses when the admin target changes, or a newer
   // load starts, while a request is still in flight. Only the latest request may update state.
   const offerRequestId = useRef(0);
@@ -96,10 +101,22 @@ const Dashboard = () => {
     };
   }, [isAdmin]);
 
+  // The limits payload is advisory: if the plugin does not expose it, the
+  // dashboard keeps working exactly as before (no warning shown).
+  const loadCredentialLimits = useCallback(async () => {
+    try {
+      setCredentialLimits(await oid4vcService.getIssuedCredentialLimits());
+    } catch (error) {
+      console.warn('Failed to retrieve credential issuance limits', error);
+      setCredentialLimits([]);
+    }
+  }, []);
+
   const prepareQr = useCallback(async () => {
     const requestId = ++offerRequestId.current;
     setIsLoading(true);
     setError(null);
+    void loadCredentialLimits();
 
     try {
       const targetUser = getActiveTargetUser();
@@ -118,7 +135,7 @@ const Dashboard = () => {
     } finally {
       if (requestId === offerRequestId.current) setIsLoading(false);
     }
-  }, [getActiveTargetUser]);
+  }, [getActiveTargetUser, loadCredentialLimits]);
 
   // Cancels any credential load that is still running, then hands out the number and
   // cancellation signal the next load will use.
@@ -213,6 +230,8 @@ const Dashboard = () => {
     try {
       await oid4vcService.revokeIssuedCredential(credentialToRevoke.id, reason);
       // Optimistic UI: keep the row visible as Revoked without waiting for a refresh.
+      // Revoking frees a quota slot, so refresh limits to clear the warning.
+      loadCredentialLimits();
       setCredentials((currentCredentials) =>
         currentCredentials.map((issuedCredential) =>
           issuedCredential.id === credentialToRevoke.id
@@ -334,6 +353,10 @@ const Dashboard = () => {
               error={error}
               offerDeeplink={offerDeeplink}
               offerDeeplinkVal={offerDeeplinkVal}
+              limitWarning={getCredentialLimitWarning(
+                credentialLimits,
+                DEFAULT_CREDENTIAL_CONFIGURATION_ID
+              )}
               onRetry={prepareQr}
             />
           ) : (
