@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthProvider';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
+import { AppVersionFooter } from './components/AppVersionFooter';
 
 function AppRoutes() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -38,6 +39,7 @@ function App() {
       <AuthProvider>
         <AppRoutes />
       </AuthProvider>
+      <AppVersionFooter />
     </BrowserRouter>
   );
 }
