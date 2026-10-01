@@ -86,17 +86,15 @@ While it may work with other versions, compatibility is not guaranteed. Ensure y
 
 ## Versioning
 
-This project follows [Semantic Versioning](https://semver.org/). A release is a git tag named `vX.Y.Z`, for example `v0.1.0`.
+This project follows [Semantic Versioning](https://semver.org/). The current version is `0.1.0`, defined in `package.json`.
 
-Pushing that tag runs the release workflow. It publishes the container `ghcr.io/adorsys-gis/keycloak-oid4vc-mock-fe:X.Y.Z` and creates a GitHub release.
+Releases are identified by Git tags in the format `vX.Y.Z`, matching the version in `package.json`.
 
-Run the published `v0.1.0` image with:
+To create a release:
 
-```bash
-docker run --rm -p 8080:8080 ghcr.io/adorsys-gis/keycloak-oid4vc-mock-fe:0.1.0
-```
-
-The application is then available at `http://localhost:8080`.
+1. Bump the `version` field in `package.json`.
+2. Commit the version change.
+3. Tag that commit as `vX.Y.Z`.
 
 ## License
 
