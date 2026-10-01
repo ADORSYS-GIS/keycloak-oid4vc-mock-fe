@@ -1,5 +1,13 @@
 # Keycloak SSO & OID4VC Demo
 
+[![CI](https://github.com/ADORSYS-GIS/keycloak-oid4vc-mock-fe/actions/workflows/ci.yml/badge.svg)](https://github.com/ADORSYS-GIS/keycloak-oid4vc-mock-fe/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/ADORSYS-GIS/keycloak-oid4vc-mock-fe?label=latest%20release)](https://github.com/ADORSYS-GIS/keycloak-oid4vc-mock-fe/releases/latest)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ADORSYS-GIS/keycloak-oid4vc-mock-fe/badge)](https://scorecard.dev/viewer/?uri=github.com/ADORSYS-GIS/keycloak-oid4vc-mock-fe)
+[![Container](https://img.shields.io/badge/ghcr.io-container-2496ED)](https://github.com/ADORSYS-GIS/keycloak-oid4vc-mock-fe/pkgs/container/keycloak-oid4vc-mock-fe)
+[![License](https://img.shields.io/github/license/ADORSYS-GIS/keycloak-oid4vc-mock-fe)](./LICENSE)
+[![Stars](https://img.shields.io/github/stars/ADORSYS-GIS/keycloak-oid4vc-mock-fe?label=stars)](https://github.com/ADORSYS-GIS/keycloak-oid4vc-mock-fe/stargazers)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/ADORSYS-GIS/keycloak-oid4vc-mock-fe?label=commit%20activity)](https://github.com/ADORSYS-GIS/keycloak-oid4vc-mock-fe/commits/main)
+
 This project is a React application that demonstrates how to integrate Keycloak for Single Sign-On (SSO) and interact with an OID4VC (OpenID for Verifiable Credentials) service. It provides a basic setup for user authentication and a protected dashboard page.
 
 ![Credential Portal showing a credential offer QR code](docs/assets/credential-portal.png)
@@ -23,7 +31,7 @@ These instructions will get you a copy of the project up and running on your loc
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) (v22 or higher)
-- [npm](https://yarnpkg.com/) package manager
+- [npm](https://www.npmjs.com/) package manager
 - A running Keycloak instance with a configured realm and client.
 
 ### Installation
@@ -55,7 +63,7 @@ To start the development server, run the following command:
 npm run dev
 ```
 
-The application will be available at `http://localhost:3000`.
+The application will be available at `http://localhost:4200`.
 
 ## Available Scripts
 
