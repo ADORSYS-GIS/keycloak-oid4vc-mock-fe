@@ -18,15 +18,19 @@ This project is a React application that demonstrates how to integrate Keycloak 
 
 ## Architecture
 
-The mock frontend is the client app. **Login** contains Login with Keycloak. **Dashboard** contains Credential Offer and Credentials. Keycloak, the EUDI wallet, and the status list are outside that app.
+These diagrams show what this client does. Keycloak is outside the app and appears once on each diagram.
 
-Login with Keycloak opens the Keycloak login page, which asks for a username and password. Credential Offer then shows the offer QR. The wallet scans it and the user chooses Issue VC. The Credentials tab lists that credential as valid from Keycloak.
+### Issuance
 
-Revoke is separate. The Credentials tab asks Keycloak to revoke the credential. Keycloak writes that status to the status list, and the Credentials tab shows the credential as revoked.
+Login starts this flow. Credential Offer opens after that login. Keycloak returns the offer, and this app shows the QR and link, by reference and by value, and warns when the issuance limit is reached. Credentials lists issued credentials. Keycloak returns issued-credential status, shown as Valid, Revoked, Suspended, or Unknown. The revocation dialog requires a reason and sends the revoke call for a Valid credential.
 
-Sign in with a wallet is not a screen in this app. It appears under the password on the Keycloak login page when the login theme is saved. Choosing it shows a presentation QR. The wallet scans it, the user clicks Share, and the portal opens on Credential Offer.
+![Issuance in the mock frontend](docs/assets/architecture-issuance.png)
 
-![Architecture of the client app, Keycloak, the wallet, and the status list](docs/assets/architecture.png)
+### Presentation
+
+Login sends the browser to Keycloak. AuthProvider checks the session and keeps the access token. Dashboard opens when that session is authenticated. Sign in with a wallet stays on the Keycloak login theme. It is not a screen in this app.
+
+![Presentation in the mock frontend](docs/assets/architecture-presentation.png)
 
 ## Getting Started
 
