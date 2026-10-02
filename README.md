@@ -16,6 +16,22 @@ This project is a React application that demonstrates how to integrate Keycloak 
 
 - [Credential issuance and revocation flow](docs/credential-issuance-and-revocation-flow.md)
 
+## Architecture
+
+These diagrams show what this client does. Keycloak is outside the app and appears once on each diagram.
+
+### Issuance
+
+Login starts this flow. Credential Offer opens after that login. Keycloak returns the offer, and this app shows the QR and link, by reference and by value, and warns when the issuance limit is reached. Credentials lists issued credentials. Keycloak returns issued-credential status, shown as Valid, Revoked, Suspended, or Unknown. The revocation dialog requires a reason and sends the revoke call for a Valid credential.
+
+![Issuance in the mock frontend](docs/assets/architecture-issuance.png)
+
+### Presentation
+
+Login sends the browser to Keycloak. AuthProvider checks the session and keeps the access token. Dashboard opens when that session is authenticated. Sign in with a wallet stays on the Keycloak login theme. It is not a screen in this app.
+
+![Presentation in the mock frontend](docs/assets/architecture-presentation.png)
+
 ## Getting Started
 
 These instructions will get you a copy of the project up and running on your local machine for development and testing purposes.
