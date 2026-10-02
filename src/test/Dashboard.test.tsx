@@ -120,6 +120,7 @@ describe('credential list rendering from server responses', () => {
     ).toBeInTheDocument();
     expect(screen.queryByText('own-cred-1')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Revoke' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/no successful status-list mapping/i)).not.toBeInTheDocument();
   });
 
   it('shows UNKNOWN and SUSPENDED distinctly and keeps revoke disabled', async () => {
@@ -138,6 +139,70 @@ describe('credential list rendering from server responses', () => {
     expect(revokeButtons).toHaveLength(2);
     expect(revokeButtons[0]).toBeDisabled();
     expect(revokeButtons[1]).toBeDisabled();
+  });
+
+  it('lists leftovers with mapping and quota fields instead of a dangling banner', async () => {
+    getIssuedCredentials.mockResolvedValue([
+      {
+        id: 'leftover-1',
+        credentialType: 'IdentityCredential',
+        serverStatus: 'UNKNOWN',
+        mappingStatus: null,
+        countsTowardQuota: true,
+      },
+    ]);
+
+    renderDashboard(false);
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Credentials' }));
+
+    expect(await screen.findByText('leftover-1')).toBeInTheDocument();
+    expect(screen.getByText('Unknown')).toBeInTheDocument();
+    expect(screen.getByText('None')).toBeInTheDocument();
+    expect(screen.getByText('Yes')).toBeInTheDocument();
+    expect(screen.getByText(/no successful status-list mapping/i)).toBeInTheDocument();
+    expect(screen.queryByText(/issuance record/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Revoke' })).toBeDisabled();
+  });
+
+  it('lists admin leftovers with mapping fields and the leftover notice', async () => {
+    getIssuedCredentialsFor.mockResolvedValue([
+      {
+        id: 'admin-leftover-1',
+        credentialType: 'IdentityCredential',
+        serverStatus: 'UNKNOWN',
+        mappingStatus: null,
+        countsTowardQuota: true,
+      },
+    ]);
+    renderDashboard(true);
+
+    const user = userEvent.setup();
+    await user.selectOptions(await findEnabledTargetSelector(), 'chidi');
+    await user.click(screen.getByRole('button', { name: 'Credentials' }));
+
+    expect(await screen.findByText('admin-leftover-1')).toBeInTheDocument();
+    expect(screen.getByText('None')).toBeInTheDocument();
+    expect(screen.getByText('Yes')).toBeInTheDocument();
+    expect(screen.getByText(/no successful status-list mapping/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Revoke' })).toBeDisabled();
+  });
+
+  it('hides the leftover notice when credentials have no incomplete mapping', async () => {
+    getIssuedCredentials.mockResolvedValue([
+      {
+        id: 'own-cred-1',
+        credentialType: 'IdentityCredential',
+        serverStatus: 'UNKNOWN',
+        mappingStatus: 'SUCCESS',
+      },
+    ]);
+
+    renderDashboard(false);
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Credentials' }));
+
+    expect(await screen.findByText('own-cred-1')).toBeInTheDocument();
+    expect(screen.getByText('Unknown')).toBeInTheDocument();
+    expect(screen.queryByText(/no successful status-list mapping/i)).not.toBeInTheDocument();
   });
 });
 

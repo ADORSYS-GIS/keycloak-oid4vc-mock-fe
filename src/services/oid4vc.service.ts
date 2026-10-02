@@ -34,11 +34,8 @@ export interface IssuedVerifiableCredential {
    * The dashboard maps this to the badge and only enables Revoke for VALID.
    */
   serverStatus?: string;
-}
-
-interface IssuedCredentialStatusResponse {
-  credentials: IssuedCredentialStatusEntry[];
-  limits?: IssuedCredentialLimit[];
+  mappingStatus?: string | null;
+  countsTowardQuota?: boolean;
 }
 
 export interface IssuedCredentialStatusEntry {
@@ -53,6 +50,17 @@ export interface IssuedCredentialStatusEntry {
   clientName?: string;
   revision?: string;
   status: string;
+  mappingStatus?: string | null;
+  countsTowardQuota?: boolean;
+}
+
+export interface IssuedCredentialListing {
+  credentials: IssuedCredentialStatusEntry[];
+}
+
+interface IssuedCredentialStatusResponse {
+  credentials?: IssuedCredentialStatusEntry[];
+  limits?: IssuedCredentialLimit[];
 }
 
 interface CredentialRevocationResponse {
@@ -439,14 +447,14 @@ class Oid4vcService {
   }
 
   /**
-   * Fetches issued-credential statuses from `/status-list/issued-credential-status`.
+   * Fetches `/status-list/issued-credential-status`.
    * - No argument: the authenticated bearer's credentials.
    * - With `targetUser`: that holder's credentials (admin list).
    */
-  async getIssuedCredentialStatus(
+  async getIssuedCredentialListing(
     targetUser?: string,
     signal?: AbortSignal
-  ): Promise<IssuedCredentialStatusEntry[]> {
+  ): Promise<IssuedCredentialListing> {
     const queryString = this.buildQueryString({ target_user: targetUser });
     const suffix = queryString ? `?${queryString}` : '';
     const response = await this.getJsonResponse<IssuedCredentialStatusResponse>(
@@ -455,7 +463,22 @@ class Oid4vcService {
       signal
     );
 
-    return response.credentials;
+    return {
+      credentials: response.credentials ?? [],
+    };
+  }
+
+  /**
+   * Fetches issued-credential statuses from `/status-list/issued-credential-status`.
+   * - No argument: the authenticated bearer's credentials.
+   * - With `targetUser`: that holder's credentials (admin list).
+   */
+  async getIssuedCredentialStatus(
+    targetUser?: string,
+    signal?: AbortSignal
+  ): Promise<IssuedCredentialStatusEntry[]> {
+    const listing = await this.getIssuedCredentialListing(targetUser, signal);
+    return listing.credentials;
   }
 
   /**
@@ -485,6 +508,8 @@ class Oid4vcService {
       clientName: entry.clientName,
       revision: entry.revision,
       serverStatus: entry.status,
+      mappingStatus: entry.mappingStatus,
+      countsTowardQuota: entry.countsTowardQuota,
       revoked: entry.status === 'INVALID',
     };
   }
