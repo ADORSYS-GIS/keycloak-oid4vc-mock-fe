@@ -67,7 +67,17 @@ The application will be available at `http://localhost:4200`.
 
 ## Run with Docker
 
-The published image listens on port 8080. Add an `-e` flag only for a value you want to change. If you skip a variable, that variable stays at its image default: demo Keycloak at `https://keycloak-demo.solutions.adorsys.com`, realm `oid4vc-vci`, client `oid4vc-demo-public`, credential `DatevCompanyCredential`, and pre-authorized offers on.
+The published image listens on port `8080`.
+
+Use the `-e` flag only for environment variables you want to override. If you omit a variable, the application uses the default value provided by the image:
+
+- **Keycloak URL:** `https://keycloak-demo.solutions.adorsys.com`
+- **Keycloak realm:** `oid4vc-vci`
+- **Keycloak client ID:** `oid4vc-demo-public`
+- **Credential configuration ID:** `DatevCompanyCredential`
+- **Pre-authorized offers:** enabled
+
+For example:
 
 ```bash
 docker run --rm -p 8080:8080 \
@@ -79,7 +89,9 @@ docker run --rm -p 8080:8080 \
   ghcr.io/adorsys-gis/keycloak-oid4vc-mock-fe:latest
 ```
 
-The application will be available at `http://localhost:8080`.
+The application will be available at:
+
+`http://localhost:8080`
 
 ## Available Scripts
 
