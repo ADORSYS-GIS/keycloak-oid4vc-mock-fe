@@ -16,6 +16,30 @@ This project is a React application that demonstrates how to integrate Keycloak 
 
 - [Credential issuance and revocation flow](docs/credential-issuance-and-revocation-flow.md)
 
+## Architecture
+
+These diagrams show the main flows handled by the client application. Keycloak and the Status List Server are external to the application and are shown as separate components to make the integration boundaries clear.
+
+### Issuance
+
+The flow starts with user authentication. After login, the Credential Offer flow is opened. The application obtains the credential offer from Keycloak and displays it as either a QR code or a link, supporting both by-reference and by-value offers. The application also displays a warning when the issuance limit is reached.
+
+The Credentials view lists the credentials issued to the user. The application retrieves the credential status through the credential status flow and displays it as Valid, Revoked, Suspended, or Unknown. The Status List Server is responsible for providing the status information used to determine the current state of a credential.
+
+For a Valid credential, the user can open the revocation dialog, provide a reason, and submit the revocation request. The resulting status change is reflected through the Status List Server.
+
+![Issuance in the mock frontend](docs/assets/architecture-issuance.png)
+
+### Presentation
+
+The presentation flow starts with authentication, which redirects the browser to Keycloak. The AuthProvider checks the authentication session and maintains the access token. Once the session is authenticated, the user is redirected to the Dashboard.
+
+Wallet-based sign-in is handled through the Keycloak login theme. It is therefore part of the Keycloak authentication flow and is not a screen rendered by this application.
+
+The Status List Server is also part of the credential verification flow, providing the status information required when checking whether a presented credential is currently valid.
+
+![Presentation in the mock frontend](docs/assets/architecture-presentation.png)
+
 ## Getting Started
 
 These instructions will get you a copy of the project up and running on your local machine for development and testing purposes.
