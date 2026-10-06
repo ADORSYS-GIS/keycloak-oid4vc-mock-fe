@@ -65,6 +65,22 @@ npm run dev
 
 The application will be available at `http://localhost:4200`.
 
+## Run with Docker
+
+The published image listens on port 8080. Add an `-e` flag only for a value you want to change. If you skip a variable, that variable stays at its image default: demo Keycloak at `https://keycloak-demo.solutions.adorsys.com`, realm `oid4vc-vci`, client `oid4vc-demo-public`, credential `DatevCompanyCredential`, and pre-authorized offers on.
+
+```bash
+docker run --rm -p 8080:8080 \
+  -e VITE_KEYCLOAK_URL=https://your-keycloak-instance.com \
+  -e VITE_KEYCLOAK_REALM=your-realm \
+  -e VITE_KEYCLOAK_CLIENT_ID=your-client-id \
+  -e VITE_OID4VC_DEFAULT_CREDENTIAL_CONFIGURATION_ID=your-credential-config-id \
+  -e VITE_OID4VC_PRE_AUTHORIZED=true \
+  ghcr.io/adorsys-gis/keycloak-oid4vc-mock-fe:latest
+```
+
+The application will be available at `http://localhost:8080`.
+
 ## Available Scripts
 
 In the project directory, you can run:
