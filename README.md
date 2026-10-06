@@ -18,17 +18,25 @@ This project is a React application that demonstrates how to integrate Keycloak 
 
 ## Architecture
 
-These diagrams show what this client does. Keycloak is outside the app and appears once on each diagram.
+These diagrams show the main flows handled by the client application. Keycloak and the Status List Server are external to the application and are shown as separate components to make the integration boundaries clear.
 
 ### Issuance
 
-Login starts this flow. Credential Offer opens after that login. Keycloak returns the offer, and this app shows the QR and link, by reference and by value, and warns when the issuance limit is reached. Credentials lists issued credentials. Keycloak returns issued-credential status, shown as Valid, Revoked, Suspended, or Unknown. The revocation dialog requires a reason and sends the revoke call for a Valid credential.
+The flow starts with user authentication. After login, the Credential Offer flow is opened. The application obtains the credential offer from Keycloak and displays it as either a QR code or a link, supporting both by-reference and by-value offers. The application also displays a warning when the issuance limit is reached.
+
+The Credentials view lists the credentials issued to the user. The application retrieves the credential status through the credential status flow and displays it as Valid, Revoked, Suspended, or Unknown. The Status List Server is responsible for providing the status information used to determine the current state of a credential.
+
+For a Valid credential, the user can open the revocation dialog, provide a reason, and submit the revocation request. The resulting status change is reflected through the Status List Server.
 
 ![Issuance in the mock frontend](docs/assets/architecture-issuance.png)
 
 ### Presentation
 
-Login sends the browser to Keycloak. AuthProvider checks the session and keeps the access token. Dashboard opens when that session is authenticated. Sign in with a wallet stays on the Keycloak login theme. It is not a screen in this app.
+The presentation flow starts with authentication, which redirects the browser to Keycloak. The AuthProvider checks the authentication session and maintains the access token. Once the session is authenticated, the user is redirected to the Dashboard.
+
+Wallet-based sign-in is handled through the Keycloak login theme. It is therefore part of the Keycloak authentication flow and is not a screen rendered by this application.
+
+The Status List Server is also part of the credential verification flow, providing the status information required when checking whether a presented credential is currently valid.
 
 ![Presentation in the mock frontend](docs/assets/architecture-presentation.png)
 
