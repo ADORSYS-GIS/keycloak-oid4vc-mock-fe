@@ -156,8 +156,8 @@ const Dashboard = () => {
     try {
       const targetUser = getActiveTargetUser();
 
-      // One plugin call returns each credential with its metadata and status.
-      // A failed call leaves nothing to render.
+      // One plugin call returns each credential with metadata, status, and mapping fields.
+      // A failed call leaves nothing to render. Leftover notice is derived in CredentialsView.
       const issuedCredentials = targetUser
         ? await oid4vcService.getIssuedCredentialsFor(targetUser, signal)
         : await oid4vcService.getIssuedCredentials(signal);

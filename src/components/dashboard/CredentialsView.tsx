@@ -1,8 +1,12 @@
 import type { ReactNode } from 'react';
-import { Ban, QrCode as QrCodeIcon, RefreshCw } from 'lucide-react';
+import { Ban, Info, QrCode as QrCodeIcon, RefreshCw } from 'lucide-react';
+import { hasIncompleteStatusListMapping } from './credentialViewState';
 import { ErrorState, LoadingState, PrimaryButton } from './States';
 import { isRevocable, type CredentialStatus, type DisplayIssuedCredential } from './types';
 import { formatTimestamp } from './format';
+
+const LEFTOVER_MAPPING_NOTICE =
+  'Some entries have no successful status-list mapping. They may be leftovers from a failed issuance, or valid credentials that cannot be revoked here. Ask an administrator to remove the Keycloak issued-credential entry if a quota slot must be freed.';
 
 export function CredentialsView({
   credentials,
@@ -22,6 +26,9 @@ export function CredentialsView({
   onRefresh: () => void;
   onRevoke: (credential: DisplayIssuedCredential) => void;
 }) {
+  const showLeftoverNotice =
+    !credentialsLoading && !credentialsError && credentials.some(hasIncompleteStatusListMapping);
+
   return (
     <div>
       {credentialsLoading && (
@@ -52,6 +59,8 @@ export function CredentialsView({
           <ErrorState message={credentialsError} actionLabel="Refresh" onAction={onRefresh} />
         </div>
       )}
+
+      {showLeftoverNotice && <LeftoverMappingNotice />}
 
       {!credentialsLoading && !credentialsError && credentials.length === 0 && (
         <EmptyCredentialsState forUser={forUser} />
@@ -88,6 +97,50 @@ export function CredentialsView({
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function LeftoverMappingNotice() {
+  return (
+    <div
+      role="status"
+      style={{
+        backgroundColor: 'var(--color-surface)',
+        border: '1px solid var(--color-border)',
+        borderRadius: 'var(--radius-lg)',
+        padding: '18px 20px',
+        marginBottom: '16px',
+        boxShadow: 'var(--shadow-sm)',
+      }}
+    >
+      <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+        <div
+          style={{
+            width: '36px',
+            height: '36px',
+            borderRadius: '50%',
+            backgroundColor: '#e7f1ff',
+            color: 'var(--color-primary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <Info size={18} aria-hidden="true" />
+        </div>
+        <p
+          style={{
+            margin: 0,
+            lineHeight: 1.55,
+            fontSize: '0.9rem',
+            color: 'var(--color-muted)',
+          }}
+        >
+          {LEFTOVER_MAPPING_NOTICE}
+        </p>
+      </div>
     </div>
   );
 }
@@ -210,6 +263,11 @@ function CredentialCard({
           label="Wallet client"
           value={credential.clientName || credential.clientId || '-'}
         />
+        <DetailItem label="Mapping" value={credential.mappingStatus || 'None'} />
+        <DetailItem
+          label="Counts toward quota"
+          value={quotaOccupancyLabel(credential.countsTowardQuota)}
+        />
       </div>
 
       <div
@@ -244,6 +302,12 @@ function CredentialCard({
       </div>
     </div>
   );
+}
+
+function quotaOccupancyLabel(countsTowardQuota?: boolean): string {
+  if (countsTowardQuota === true) return 'Yes';
+  if (countsTowardQuota === false) return 'No';
+  return '-';
 }
 
 function DetailItem({ label, value }: { label: string; value: ReactNode }) {
