@@ -7,11 +7,12 @@
     <title>keycloak-sso</title>
 
     <script>
+      // Send the old GitHub Pages URL to the datev fork deployment.
+      // Only redirect on this host, so self-hosted Docker deployments
+      // are left alone.
       const hostname = window.location.hostname;
-      const isLocalhost = ['localhost', '127.0.0.1'].includes(hostname);
-      const isNgrok = hostname.endsWith('.ngrok-free.app') || hostname.endsWith('.ngrok.io');
 
-      if (!isLocalhost && !isNgrok) {
+      if (hostname.endsWith('adorsys-gis.github.io')) {
         const newBase = 'https://adorsys-gis.github.io/keycloak-oid4vc-mock-fe-datev';
         const path = window.location.pathname.replace('/keycloak-oid4vc-mock-fe', '');
         window.location.href = newBase + path + window.location.search + window.location.hash;
