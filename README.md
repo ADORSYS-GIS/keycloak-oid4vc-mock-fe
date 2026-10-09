@@ -79,6 +79,17 @@ These instructions will get you a copy of the project up and running on your loc
    cp .env.example .env
    ```
 
+The configuration variables are:
+
+| Variable                                          | Description                                                                                                                                                        | Default |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- |
+| `VITE_KEYCLOAK_URL`                               | URL of the Keycloak instance.                                                                                                                                      | -       |
+| `VITE_KEYCLOAK_REALM`                             | Keycloak realm to use.                                                                                                                                             | -       |
+| `VITE_KEYCLOAK_CLIENT_ID`                         | Keycloak public client ID.                                                                                                                                         | -       |
+| `VITE_OID4VC_DEFAULT_CREDENTIAL_CONFIGURATION_ID` | Default credential configuration ID for the OID4VC issuance flow.                                                                                                  | -       |
+| `VITE_OID4VC_PRE_AUTHORIZED`                      | Whether to use pre-authorized credential offers.                                                                                                                   | -       |
+| `VITE_BASE_PATH`                                  | Base path under which the app is served, e.g. `/mock-fe/` when the app runs behind a reverse proxy at `https://example.com/mock-fe/`. Must start and end with `/`. | `/`     |
+
 ### Running the Application
 
 To start the development server, run the following command:
@@ -88,6 +99,16 @@ npm run dev
 ```
 
 The application will be available at `http://localhost:4200`.
+
+### Deploying under a sub-path
+
+By default the app is built to be served from the domain root. To serve it under a sub-path (for example `/mock-fe/` for a customer workshop), set `VITE_BASE_PATH` at build time:
+
+```bash
+VITE_BASE_PATH=/mock-fe/ npm run build
+```
+
+All asset URLs, the `config.js` reference and the client-side routing are then resolved relative to `/mock-fe/`. The value is read from the shell environment, CI environment, or a `VITE_BASE_PATH` entry in `.env`.
 
 ## Run with Docker
 
@@ -116,6 +137,16 @@ docker run --rm -p 8080:8080 \
 The application will be available at:
 
 `http://localhost:8080`
+
+### Deploying the Docker image under a sub-path
+
+The base path is baked into the static assets at image build time. To serve the image under a sub-path (for example `/mock-fe/` behind a reverse proxy), build the image with `VITE_BASE_PATH`:
+
+```bash
+docker build --build-arg VITE_BASE_PATH=/mock-fe/ -t keycloak-oid4vc-mock-fe:mock-fe .
+```
+
+The `VITE_KEYCLOAK_*` settings can still be overridden at container start with `-e` flags, as shown above.
 
 ## Available Scripts
 
