@@ -1,9 +1,10 @@
 import Keycloak from 'keycloak-js';
+import { readConfig } from './runtimeConfig';
 
 const keycloakConfig = {
-  url: import.meta.env.VITE_KEYCLOAK_URL,
-  realm: import.meta.env.VITE_KEYCLOAK_REALM,
-  clientId: import.meta.env.VITE_KEYCLOAK_CLIENT_ID,
+  url: readConfig('VITE_KEYCLOAK_URL'),
+  realm: readConfig('VITE_KEYCLOAK_REALM'),
+  clientId: readConfig('VITE_KEYCLOAK_CLIENT_ID'),
 };
 
 const keycloak = new Keycloak(keycloakConfig);

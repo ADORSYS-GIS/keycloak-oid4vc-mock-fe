@@ -1,4 +1,5 @@
 import keycloak from '../config/keycloak.config';
+import { readConfig } from '../config/runtimeConfig';
 import type { UserProfile } from '../types';
 
 interface CredentialOfferUriResponse {
@@ -83,13 +84,11 @@ export const CredentialConfigurationId = {
 } as const;
 
 export const DEFAULT_CREDENTIAL_CONFIGURATION_ID =
-  import.meta.env.VITE_OID4VC_DEFAULT_CREDENTIAL_CONFIGURATION_ID ||
+  readConfig('VITE_OID4VC_DEFAULT_CREDENTIAL_CONFIGURATION_ID') ||
   CredentialConfigurationId.DATEV_COMPANY;
 
 export const IS_PRE_AUTHORIZED_FLOW =
-  String(import.meta.env.VITE_OID4VC_PRE_AUTHORIZED)
-    .trim()
-    .toLowerCase() === 'true';
+  readConfig('VITE_OID4VC_PRE_AUTHORIZED').trim().toLowerCase() === 'true';
 
 const EndpointType = {
   KEYCLOAK_26_6_0: 'keycloak_26_6_0',
@@ -109,14 +108,14 @@ class Oid4vcService {
   };
 
   private getBaseUrl(): string {
-    const keycloakUrl = import.meta.env.VITE_KEYCLOAK_URL;
-    const realm = import.meta.env.VITE_KEYCLOAK_REALM;
+    const keycloakUrl = readConfig('VITE_KEYCLOAK_URL');
+    const realm = readConfig('VITE_KEYCLOAK_REALM');
     return `${keycloakUrl}/realms/${realm}`;
   }
 
   private getAdminBaseUrl(): string {
-    const keycloakUrl = import.meta.env.VITE_KEYCLOAK_URL;
-    const realm = import.meta.env.VITE_KEYCLOAK_REALM;
+    const keycloakUrl = readConfig('VITE_KEYCLOAK_URL');
+    const realm = readConfig('VITE_KEYCLOAK_REALM');
     return `${keycloakUrl}/admin/realms/${realm}`;
   }
 
